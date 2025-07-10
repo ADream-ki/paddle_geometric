@@ -3,7 +3,7 @@ import paddle
 from paddle import Tensor
 from paddle_geometric.nn.aggr import Aggregation
 
-
+# @finshed
 class MLPAggregation(Aggregation):
     r"""Performs MLP aggregation in which the elements to aggregate are
     flattened into a single vectorial representation, and are then processed by
@@ -43,19 +43,17 @@ class MLPAggregation(Aggregation):
         self.out_channels = out_channels
         self.max_num_elements = max_num_elements
 
-        # Define MLP with Paddle's Sequential API
-        self.mlp = paddle.nn.Sequential(
-            paddle.nn.Flatten(),
-            paddle.nn.Linear(in_channels * max_num_elements, out_channels),
-            paddle.nn.ReLU(),
-            paddle.nn.Dropout(kwargs.get("dropout", 0.5)),
-            paddle.nn.Linear(out_channels, out_channels)
+        from paddle_geometric.nn import MLP
+
+        self.mlp = MLP(
+            in_channels=in_channels * max_num_elements,
+            out_channels=out_channels,
+            **kwargs,
         )
+        self.reset_parameters()
 
     def reset_parameters(self):
-        for layer in self.mlp:
-            if isinstance(layer, paddle.nn.Linear):
-                paddle.nn.initializer.XavierUniform()(layer.weight)
+        self.mlp.reset_parameters()
 
     def forward(self, x: Tensor, index: Optional[Tensor] = None,
                 ptr: Optional[Tensor] = None, dim_size: Optional[int] = None,
@@ -63,9 +61,8 @@ class MLPAggregation(Aggregation):
 
         x, _ = self.to_dense_batch(x, index, ptr, dim_size, dim,
                                    max_num_elements=self.max_num_elements)
+        return self.mlp(x.view([-1, x.shape[1] * x.shape[2]]), index, dim_size)
 
-        x = x.reshape([-1, x.shape[1] * x.shape[2]])
-        return self.mlp(x)
 
     def __repr__(self) -> str:
         return (f'{self.__class__.__name__}({self.in_channels}, '

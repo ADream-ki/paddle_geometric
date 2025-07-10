@@ -2,14 +2,14 @@ from typing import Optional
 
 import paddle
 from paddle import Tensor
-
+from paddle_geometric.experimental import disable_dynamic_shapes
 from paddle_geometric.nn.aggr import Aggregation
 from paddle_geometric.nn.aggr.utils import (
     PoolingByMultiheadAttention,
     SetAttentionBlock,
 )
 
-
+# @finshed
 class SetTransformerAggregation(Aggregation):
     r"""Performs "Set Transformer" aggregation in which the elements to
     aggregate are processed by multi-head attention blocks, as described in
@@ -80,7 +80,7 @@ class SetTransformerAggregation(Aggregation):
         self.pma.reset_parameters()
         for decoder in self.decoders:
             decoder.reset_parameters()
-
+    @disable_dynamic_shapes(required_args=["dim_size", "max_num_elements"])
     def forward(
         self,
         x: Tensor,
@@ -102,7 +102,7 @@ class SetTransformerAggregation(Aggregation):
         for decoder in self.decoders:
             x = decoder(x)
 
-        x = paddle.nan_to_num(x)
+        x = x.nan_to_num()
 
         return x.flatten(1, 2) if self.concat else x.mean(axis=1)
 

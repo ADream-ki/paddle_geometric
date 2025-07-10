@@ -7,7 +7,7 @@ from paddle_geometric.nn.aggr import Aggregation
 from paddle_geometric.nn.inits import reset
 from paddle_geometric.utils import softmax
 
-
+# @finshed
 class AttentionalAggregation(Aggregation):
     r"""
     The soft attention aggregation layer from the

@@ -5,12 +5,13 @@ import paddle
 from paddle import Tensor
 import paddle.nn as nn
 import paddle.nn.functional as F
+from paddle_geometric.experimental import disable_dynamic_shapes
 
 from paddle_geometric.nn.aggr import Aggregation
 from paddle_geometric.nn.aggr.utils import MultiheadAttentionBlock
 from paddle_geometric.nn.encoding import PositionalEncoding
 from paddle_geometric.utils import scatter
-
+from paddle_geometric.nn.initializer import linear_init_
 
 class PatchTransformerAggregation(Aggregation):
     r"""Performs patch transformer aggregation in which the elements to
@@ -78,13 +79,15 @@ class PatchTransformerAggregation(Aggregation):
         )
 
     def reset_parameters(self) -> None:
-        self.lin.reset_parameters()
-        self.pad_projector.reset_parameters()
+        linear_init_(self.lin)
+        linear_init_(self.pad_projector)
+
         self.pe.reset_parameters()
         for block in self.blocks:
             block.reset_parameters()
-        self.fc.reset_parameters()
+        linear_init_(self.fc)
 
+    @disable_dynamic_shapes(required_args=['dim_size', 'max_num_elements'])
     def forward(
         self,
         x: Tensor,
@@ -97,11 +100,11 @@ class PatchTransformerAggregation(Aggregation):
 
         if max_num_elements is None:
             if ptr is not None:
-                count = ptr[1:] - ptr[:-1]
+                count = ptr.diff()
             else:
                 count = scatter(paddle.ones_like(index), index, dim=0,
                                 dim_size=dim_size, reduce='sum')
-            max_num_elements = int(count.max().item()) + 1
+            max_num_elements = int(count._max()) + 1
 
         # Set `max_num_elements` to a multiple of `patch_size`:
         max_num_elements = (math.floor(max_num_elements / self.patch_size) *
@@ -113,7 +116,7 @@ class PatchTransformerAggregation(Aggregation):
                                    max_num_elements=max_num_elements)
 
         # [batch_size, num_patches, patch_size * hidden_channels]
-        x = x.reshape([x.shape[0], max_num_elements // self.patch_size,
+        x = x.view([x.shape[0], max_num_elements // self.patch_size,
                        self.patch_size * x.shape[-1]])
 
         # [batch_size, num_patches, hidden_channels]

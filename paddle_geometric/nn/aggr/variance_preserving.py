@@ -24,11 +24,11 @@ class VariancePreservingAggregation(Aggregation):
         out = self.reduce(x, index, ptr, dim_size, dim, reduce='sum')
 
         if ptr is not None:
-            count = ptr[1:] - ptr[:-1]
+            count = ptr.diff().to(out.dtype)
         else:
             count = degree(index, dim_size, dtype=out.dtype)
 
-        count = paddle.sqrt(count).clip(min=1.0)
+        count = count.sqrt().clip(min=1.0)
         count = broadcast(count, ref=out, dim=dim)
 
         return out / count

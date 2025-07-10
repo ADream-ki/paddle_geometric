@@ -6,7 +6,7 @@ from paddle import Tensor
 from paddle_geometric.experimental import disable_dynamic_shapes
 from paddle_geometric.utils import scatter, segment, to_dense_batch
 
-
+# @finshed
 class Aggregation(paddle.nn.Layer):
     r"""An abstract base class for implementing custom aggregations.
 

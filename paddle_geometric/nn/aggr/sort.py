@@ -3,9 +3,10 @@ from typing import Optional
 import paddle
 from paddle import Tensor
 
+from paddle_geometric.experimental import disable_dynamic_shapes
 from paddle_geometric.nn.aggr import Aggregation
 
-
+# @finshed
 class SortAggregation(Aggregation):
     r"""The pooling operator from the `"An End-to-End Deep Learning
     Architecture for Graph Classification"
@@ -28,6 +29,7 @@ class SortAggregation(Aggregation):
         super().__init__()
         self.k = k
 
+    @disable_dynamic_shapes(required_args=['dim_size', 'max_num_elements'])
     def forward(
         self,
         x: Tensor,
@@ -42,24 +44,25 @@ class SortAggregation(Aggregation):
         batch_x, _ = self.to_dense_batch(x, index, ptr, dim_size, dim,
                                          fill_value=fill_value,
                                          max_num_elements=max_num_elements)
-        B, N, D = batch_x.shape
+        B, N, D = tuple(batch_x.shape)
 
-        _, perm = paddle.topk(batch_x[:, :, -1], N, axis=-1, largest=True)
+        perm = paddle.argsort(axis=-1, descending=True, x=batch_x[:, :, -1])
         arange = paddle.arange(B, dtype='int64') * N
-        perm = perm + arange.unsqueeze(-1)
+        perm = perm + arange.view([-1, 1])
 
-        batch_x = batch_x.reshape([B * N, D])
-        batch_x = paddle.gather(batch_x, perm.flatten(), axis=0)
-        batch_x = batch_x.reshape([B, N, D])
+        batch_x = batch_x.view([B * N, D])
+        batch_x = batch_x[perm]
+        batch_x = batch_x.view([B, N, D])
 
         if N >= self.k:
-            batch_x = batch_x[:, :self.k]
+            batch_x = batch_x[:, :self.k].contiguous()
         else:
-            expand_batch_x = paddle.full([B, self.k - N, D], fill_value, dtype=batch_x.dtype)
-            batch_x = paddle.concat([batch_x, expand_batch_x], axis=1)
-
-        batch_x = paddle.where(batch_x == fill_value, paddle.zeros_like(batch_x), batch_x)
-        x = batch_x.reshape([B, self.k * D])
+            expand_batch_x = paddle.full(
+                shape=(B, self.k - N, D), fill_value=fill_value, dtype=batch_x.dtype
+            )
+            batch_x = paddle.concat(x=[batch_x, expand_batch_x], axis=1)
+        batch_x[batch_x == fill_value] = 0
+        x = batch_x.view([B, self.k * D])
 
         return x
 

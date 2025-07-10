@@ -6,7 +6,7 @@ from paddle_geometric.nn.aggr import Aggregation
 from paddle_geometric.nn.inits import reset
 from paddle_geometric.utils import scatter
 
-
+# @finshed
 class ResNetPotential(paddle.nn.Layer):
     def __init__(self, in_channels: int, out_channels: int,
                  num_layers: List[int]):
@@ -47,7 +47,7 @@ class ResNetPotential(paddle.nn.Layer):
 
         return scatter(h, index, 0, dim_size, reduce='mean').sum()
 
-
+# @finshed
 class MomentumOptimizer(paddle.nn.Layer):
     def __init__(self, learning_rate: float = 0.1, momentum: float = 0.9,
                  learnable: bool = True):
@@ -55,16 +55,20 @@ class MomentumOptimizer(paddle.nn.Layer):
 
         self._initial_lr = learning_rate
         self._initial_mom = momentum
-        self._lr = self.create_parameter(shape=[1], default_initializer=paddle.nn.initializer.Constant(learning_rate))
-        self._lr.stop_gradient = not learnable
-        self._mom = self.create_parameter(shape=[1], default_initializer=paddle.nn.initializer.Constant(momentum))
-        self._mom.stop_gradient = not learnable
+        self._lr = paddle.base.framework.EagerParamBase.from_tensor(
+            tensor=paddle.to_tensor(data=[learning_rate], dtype="float32"),
+            trainable=learnable,
+        )
+        self._mom = paddle.base.framework.EagerParamBase.from_tensor(
+            tensor=paddle.to_tensor(data=[momentum], dtype="float32"),
+            trainable=learnable,
+        )
         self.softplus = paddle.nn.Softplus()
         self.sigmoid = paddle.nn.Sigmoid()
 
     def reset_parameters(self):
-        self._lr.set_value(paddle.to_tensor(self._initial_lr))
-        self._mom.set_value(paddle.to_tensor(self._initial_mom))
+        self._lr.data.fill_(value=self._initial_lr)
+        self._mom.data.fill_(value=self._initial_mom)
 
     @property
     def learning_rate(self):
@@ -87,13 +91,16 @@ class MomentumOptimizer(paddle.nn.Layer):
         momentum_buffer = paddle.zeros_like(y)
         for _ in range(iterations):
             val = func(x, y, index, dim_size)
-            grad = paddle.grad([val], [y], create_graph=True, retain_graph=True)[0]
+            # grad = paddle.grad([val], [y], create_graph=True, retain_graph=True)[0]
+            grad = paddle.grad(
+                outputs=val, inputs=y, create_graph=True, retain_graph=True
+            )[0]
             delta = self.learning_rate * grad
             momentum_buffer = self.momentum * momentum_buffer - delta
             y = y + momentum_buffer
         return y
 
-
+# @finshed
 class EquilibriumAggregation(Aggregation):
     def __init__(self, in_channels: int, out_channels: int,
                  num_layers: List[int], grad_iter: int = 5, lamb: float = 0.1):
@@ -102,14 +109,16 @@ class EquilibriumAggregation(Aggregation):
         self.potential = ResNetPotential(in_channels + out_channels, 1, num_layers)
         self.optimizer = MomentumOptimizer()
         self.initial_lamb = lamb
-        self.lamb = self.create_parameter(shape=[1], default_initializer=paddle.nn.initializer.Constant(lamb))
+        self.lamb = paddle.base.framework.EagerParamBase.from_tensor(
+            tensor=paddle.empty(shape=[1]), trainable=True
+        )
         self.softplus = paddle.nn.Softplus()
         self.grad_iter = grad_iter
         self.output_dim = out_channels
         self.reset_parameters()
 
     def reset_parameters(self):
-        self.lamb.set_value(paddle.to_tensor(self.initial_lamb))
+        self.lamb.data.fill_(value=self.initial_lamb)
         reset(self.optimizer)
         reset(self.potential)
 
@@ -129,11 +138,16 @@ class EquilibriumAggregation(Aggregation):
 
         self.assert_index_present(index)
 
-        dim_size = int(paddle.max(index)) + 1 if dim_size is None else dim_size
-
-        with paddle.set_grad_enabled(True):
-            y = self.optimizer(x, self.init_output(dim_size), index, dim_size,
-                               self.energy, iterations=self.grad_iter)
+        dim_size = int(index._max()) + 1 if dim_size is None else dim_size
+        with paddle.enable_grad():
+            y = self.optimizer(
+                x,
+                self.init_output(dim_size),
+                index,
+                dim_size,
+                self.energy,
+                iterations=self.grad_iter,
+            )
 
         return y
 

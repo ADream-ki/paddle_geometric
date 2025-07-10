@@ -5,7 +5,7 @@ from paddle import Tensor
 from paddle_geometric.nn.aggr import Aggregation
 from paddle_geometric.utils import cumsum
 
-
+# @finshed
 class QuantileAggregation(Aggregation):
     r"""An aggregation operator that returns the feature-wise :math:`q`-th
     quantile of a set :math:`\mathcal{X}`.
@@ -42,7 +42,7 @@ class QuantileAggregation(Aggregation):
                              f"got ('{interpolation}')")
 
         self._q = q
-        self.q = paddle.to_tensor(qs).reshape([-1, 1])
+        self.register_buffer('q', paddle.to_tensor(qs).view([-1, 1]))
         self.interpolation = interpolation
         self.fill_value = fill_value
 
@@ -58,6 +58,8 @@ class QuantileAggregation(Aggregation):
         count = paddle.bincount(index, minlength=dim_size or 0)
         ptr = cumsum(count)[:-1]
 
+        # In case there exists dangling indices (`dim_size > index.max()`), we
+        # need to clamp them to prevent out-of-bound issues:
         if dim_size is not None:
             ptr = paddle.clip(ptr, max=x.shape[dim] - 1)
 
@@ -66,47 +68,58 @@ class QuantileAggregation(Aggregation):
 
         shape = [1] * x.ndim
         shape[dim] = -1
-        index = index.reshape(shape).expand_as(x)
+        index = index.view(shape).expand_as(x)
 
-        # Sort the values and then sort the indices:
-        x, x_perm = paddle.sort(x, axis=dim)
-        index = paddle.gather(index, x_perm, axis=dim)
-        index, index_perm = paddle.sort(index, axis=dim)
-        x = paddle.gather(x, index_perm, axis=dim)
+        # Two sorts: the first one on the value,
+        # the second (stable) on the indices:
+        x, x_perm = paddle.sort(x=x, axis=dim), paddle.argsort(x=x, axis=dim)
+        index = index.take_along_axis(x_perm, axis=dim)
+        index, index_perm = paddle.sort(x=index, axis=dim, stable=True), paddle.argsort(
+            x=index, axis=dim, stable=True
+        )
+        x = x.take_along_axis(index_perm, axis=dim)
 
         # Compute the quantile interpolations:
-        if self.interpolation == 'lower':
-            quantile = paddle.gather(x, paddle.floor(q_point).astype('int64'), axis=dim)
-        elif self.interpolation == 'higher':
-            quantile = paddle.gather(x, paddle.ceil(q_point).astype('int64'), axis=dim)
-        elif self.interpolation == 'nearest':
-            quantile = paddle.gather(x, paddle.round(q_point).astype('int64'), axis=dim)
+        if self.interpolation == "lower":
+            quantile = x.index_select(
+                axis=dim, index=q_point.floor().astype(dtype="int64")
+            )
+        elif self.interpolation == "higher":
+            quantile = x.index_select(
+                axis=dim, index=q_point.ceil().astype(dtype="int64")
+            )
+        elif self.interpolation == "nearest":
+            quantile = x.index_select(
+                axis=dim, index=q_point.round().astype(dtype="int64")
+            )
         else:
-            l_quant = paddle.gather(x, paddle.floor(q_point).astype('int64'), axis=dim)
-            r_quant = paddle.gather(x, paddle.ceil(q_point).astype('int64'), axis=dim)
-
-            if self.interpolation == 'linear':
-                q_frac = (q_point - paddle.floor(q_point)).reshape(shape)
+            l_quant = x.index_select(
+                axis=dim, index=q_point.floor().astype(dtype="int64")
+            )
+            r_quant = x.index_select(
+                axis=dim, index=q_point.ceil().astype(dtype="int64")
+            )
+            if self.interpolation == "linear":
+                q_frac = q_point.frac().view(shape)
                 quantile = l_quant + (r_quant - l_quant) * q_frac
-            else:  # 'midpoint'
+            else:
                 quantile = 0.5 * l_quant + 0.5 * r_quant
 
-        repeats = self.q.numel()
-        mask = (count == 0).tile([repeats]).reshape(shape)
-        out = paddle.where(mask, paddle.to_tensor(self.fill_value), quantile)
+        repeats = self.q.size
+        mask = (count == 0).repeat_interleave(repeats=repeats).view(shape)
+        out = quantile.masked_fill(mask=mask, value=self.fill_value)
 
-        if self.q.numel() > 1:
-            shape = list(out.shape)
-            shape = (shape[:dim] + [shape[dim] // self.q.numel(), -1] +
-                     shape[dim + 2:])
-            out = out.reshape(shape)
+        if self.q.size > 1:
+            shape = list(tuple(out.shape))
+            shape = shape[:dim] + [shape[dim] // self.q.size, -1] + shape[dim + 2 :]
+            out = out.view(shape)
 
         return out
 
     def __repr__(self) -> str:
         return f'{self.__class__.__name__}(q={self._q})'
 
-
+# @finshed
 class MedianAggregation(QuantileAggregation):
     r"""An aggregation operator that returns the feature-wise median of a set.
 

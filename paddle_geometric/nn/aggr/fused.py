@@ -15,7 +15,7 @@ from paddle_geometric.nn.aggr.basic import (
 from paddle_geometric.nn.resolver import aggregation_resolver
 from paddle_geometric.utils import scatter
 
-
+# @finshed
 class FusedAggregation(Aggregation):
     r"""Helper class to fuse computation of multiple aggregations together.
 
@@ -191,6 +191,8 @@ class FusedAggregation(Aggregation):
                 ptr: Optional[Tensor] = None, dim_size: Optional[int] = None,
                 dim: int = -2) -> List[Tensor]:
 
+        # Assert two-dimensional input for now to simplify computation:
+        # TODO refactor this to support any dimension.
         self.assert_index_present(index)
         self.assert_two_dimensional_input(x, dim)
 
@@ -198,17 +200,21 @@ class FusedAggregation(Aggregation):
 
         if dim_size is None:
             if ptr is not None:
-                dim_size = ptr.shape[0] - 1
+                dim_size = ptr.size - 1
             else:
-                dim_size = int(index.max()) + 1 if index.numel() > 0 else 0
+                dim_size = int(index._max()) + 1 if index.size > 0 else 0
 
         count: Optional[Tensor] = None
         if self.need_degree:
-            count = paddle.zeros([dim_size], dtype=x.dtype)
+            count = paddle.zeros(dim_size, dtype=x.dtype)
             # count = paddle.scatter_add(count, index, paddle.ones([x.shape[0]], dtype=x.dtype))
-            count = paddle.put_along_axis(count, index, paddle.ones([x.shape[0]], dtype=x.dtype), axis=0)
-
-            count = paddle.clip(count, min=1).unsqueeze(-1)
+            count.put_along_axis_(
+                axis=0,
+                indices=index,
+                values=paddle.ones(shape=x.shape[0], dtype=x.dtype),
+                reduce="add",
+            )
+            count = paddle.clip(count, min=1).view([-1, 1])
 
         outs: List[Optional[Tensor]] = []
 
@@ -218,11 +224,15 @@ class FusedAggregation(Aggregation):
                 continue
             assert isinstance(reduce, str)
 
-            if reduce == 'pow_sum':
-                out = scatter(x * x if not self.semi_grad else x.detach() * x.detach(), index, reduce='sum')
+            if reduce == "pow_sum":
+                if self.semi_grad:
+                    out = scatter(
+                        x.detach() * x.detach(), index, 0, dim_size, reduce="sum"
+                    )
+                else:
+                    out = scatter(x * x, index, 0, dim_size, reduce="sum")
             else:
-                out = scatter(x, index, reduce=reduce)
-
+                out = scatter(x, index, 0, dim_size, reduce=reduce)
             outs.append(out)
 
         i = self.aggr_index.get('MeanAggregation')
@@ -246,12 +256,46 @@ class FusedAggregation(Aggregation):
             assert count is not None
 
             if self.lookup_ops[i] is None:
-                sum_ = scatter(x, index, reduce='sum')
+                sum_ = scatter(x, index, 0, dim_size, reduce='sum')
                 mean = sum_ / count
             else:
                 lookup_op = self.lookup_ops[i]
                 assert lookup_op is not None
                 tmp_aggr, j = lookup_op
+
+                if tmp_aggr == 'SumAggregation':
+                    sum_ = outs[j]
+                    assert sum_ is not None
+                    mean = sum_ / count
+                elif tmp_aggr == 'MeanAggregation':
+                    mean = outs[j]
+                else:
+                    raise NotImplementedError
+
+            pow_sum = outs[i]
+
+            assert pow_sum is not None
+            assert mean is not None
+            outs[i] = (pow_sum / count) - (mean * mean)
+
+        # Compute `StdAggregation` last:
+        if 'StdAggregation' in self.aggr_index:
+            i = self.aggr_index['StdAggregation']
+
+            var: Optional[Tensor] = None
+            pow_sum: Optional[Tensor] = None
+            mean: Optional[Tensor] = None
+
+            if self.lookup_ops[i] is None:
+                pow_sum = outs[i]
+                sum_ = scatter(x, index, 0, dim_size, reduce='sum')
+                assert count is not None
+                mean = sum_ / count
+            else:
+                lookup_op = self.lookup_ops[i]
+                assert lookup_op is not None
+                tmp_aggr, j = lookup_op
+
                 if tmp_aggr == 'VarAggregation':
                     var = outs[j]
                 elif tmp_aggr == 'SumAggregation':
@@ -273,9 +317,8 @@ class FusedAggregation(Aggregation):
                 var = (pow_sum / count) - (mean * mean)
 
                 # Allow "undefined" gradient at `sqrt(0.0)`:
-            out = paddle.clip(var, min=1e-5).sqrt()
-            out = paddle.where(out <= math.sqrt(1e-5), paddle.zeros_like(out), out)
-
+            out = var.clip(min=1e-05).sqrt()
+            out = out.masked_fill(mask=out <= math.sqrt(1e-05), value=0.0)
             outs[i] = out
 
         #######################################################################

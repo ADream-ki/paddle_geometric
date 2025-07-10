@@ -2,7 +2,7 @@ from typing import Optional
 
 import paddle
 from paddle import Tensor, nn
-
+from paddle_geometric.nn.initializer import linear_init_
 
 class MultiheadAttentionBlock(nn.Layer):
     r"""The Multihead Attention Block (MAB) from the `"Set Transformer: A
@@ -29,6 +29,7 @@ class MultiheadAttentionBlock(nn.Layer):
         self.attn = nn.MultiHeadAttention(
             channels,
             heads,
+            need_weights=False,
             dropout=dropout,
         )
         self.lin = nn.Linear(channels, channels)
@@ -36,12 +37,13 @@ class MultiheadAttentionBlock(nn.Layer):
         self.layer_norm2 = nn.LayerNorm(channels) if layer_norm else None
 
     def reset_parameters(self):
-        self.attn._reset_parameters()
-        self.lin.reset_parameters()
-        if self.layer_norm1 is not None:
-            self.layer_norm1.reset_parameters()
-        if self.layer_norm2 is not None:
-            self.layer_norm2.reset_parameters()
+        pass
+    #     self.attn._reset_parameters()
+    #     self.lin.reset_parameters()
+    #     if self.layer_norm1 is not None:
+    #         self.layer_norm1.reset_parameters()
+    #     if self.layer_norm2 is not None:
+    #         self.layer_norm2.reset_parameters()
 
     def forward(self, x: Tensor, y: Tensor, x_mask: Optional[Tensor] = None,
                 y_mask: Optional[Tensor] = None) -> Tensor:
@@ -49,10 +51,11 @@ class MultiheadAttentionBlock(nn.Layer):
         if y_mask is not None:
             y_mask = ~y_mask
 
-        out, _ = self.attn(x, y, y, attn_mask=y_mask)
+        out = self.attn(x.transpose([1, 0, 2]), y.transpose([1, 0, 2]), y.transpose([1, 0, 2]), attn_mask=~y_mask)
+        out = out.transpose([1, 0, 2])
 
         if x_mask is not None:
-            out = paddle.where(x_mask.unsqueeze(-1), out, paddle.zeros_like(out))
+           out[~x_mask] = 0.0
 
         out = out + x
 
@@ -96,19 +99,21 @@ class InducedSetAttentionBlock(nn.Layer):
     def __init__(self, channels: int, num_induced_points: int, heads: int = 1,
                  layer_norm: bool = True, dropout: float = 0.0):
         super().__init__()
-        self.ind = self.create_parameter(shape=[1, num_induced_points, channels],
-                                         default_initializer=nn.initializer.XavierUniform())
+        self.ind = paddle.base.framework.EagerParamBase.from_tensor(
+            tensor=paddle.empty(shape=[1, num_induced_points, channels])
+        )
         self.mab1 = MultiheadAttentionBlock(channels, heads, layer_norm, dropout)
         self.mab2 = MultiheadAttentionBlock(channels, heads, layer_norm, dropout)
         self.reset_parameters()
 
     def reset_parameters(self):
-        nn.initializer.XavierUniform()(self.ind)
+        init_XavierUniform = paddle.nn.initializer.XavierUniform()
+        init_XavierUniform(self.ind)
         self.mab1.reset_parameters()
         self.mab2.reset_parameters()
 
     def forward(self, x: Tensor, mask: Optional[Tensor] = None) -> Tensor:
-        h = self.mab1(self.ind.tile([x.shape[0], 1, 1]), x, y_mask=mask)
+        h = self.mab1(self.ind.expand(shape=[x.shape[0], -1, -1]), x, y_mask=mask)
         return self.mab2(x, h, x_mask=mask)
 
     def __repr__(self) -> str:
@@ -124,19 +129,20 @@ class PoolingByMultiheadAttention(nn.Layer):
                  layer_norm: bool = True, dropout: float = 0.0):
         super().__init__()
         self.lin = nn.Linear(channels, channels)
-        self.seed = self.create_parameter(shape=[1, num_seed_points, channels],
-                                          default_initializer=nn.initializer.XavierUniform())
+        self.seed = paddle.base.framework.EagerParamBase.from_tensor(
+            tensor=paddle.empty(shape=[1, num_seed_points, channels])
+        )
         self.mab = MultiheadAttentionBlock(channels, heads, layer_norm, dropout)
         self.reset_parameters()
-
     def reset_parameters(self):
-        self.lin.reset_parameters()
-        nn.initializer.XavierUniform()(self.seed)
+        linear_init_(self.lin)
+        init_XavierUniform = paddle.nn.initializer.XavierUniform()
+        init_XavierUniform(self.seed)
         self.mab.reset_parameters()
 
     def forward(self, x: Tensor, mask: Optional[Tensor] = None) -> Tensor:
         x = self.lin(x).relu()
-        return self.mab(self.seed.tile([x.shape[0], 1, 1]), x, y_mask=mask)
+        return self.mab(self.seed.expand(shape=[x.shape[0], -1, -1]), x, y_mask=mask)
 
     def __repr__(self) -> str:
         return (f'{self.__class__.__name__}({self.seed.shape[2]}, '

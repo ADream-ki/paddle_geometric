@@ -5,7 +5,7 @@ from paddle import Tensor
 from paddle_geometric.nn.aggr import Aggregation
 from paddle_geometric.nn.inits import reset
 
-
+# @finshed
 class DeepSetsAggregation(Aggregation):
     r"""Performs Deep Sets aggregation in which the elements to aggregate are
     first transformed by a Multi-Layer Perceptron (MLP)

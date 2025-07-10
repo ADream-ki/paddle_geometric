@@ -8,7 +8,9 @@ from paddle_geometric.nn.aggr.utils import (
     PoolingByMultiheadAttention,
     SetAttentionBlock,
 )
+from paddle_geometric.experimental import disable_dynamic_shapes
 
+# @finshed
 
 class GraphMultisetTransformer(Aggregation):
     r"""The Graph Multiset Transformer pooling operator from the
@@ -72,7 +74,7 @@ class GraphMultisetTransformer(Aggregation):
         for encoder in self.encoders:
             encoder.reset_parameters()
         self.pma2.reset_parameters()
-
+    @disable_dynamic_shapes(required_args=['dim_size', 'max_num_elements'])
     def forward(
         self,
         x: Tensor,

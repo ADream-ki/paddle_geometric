@@ -9,8 +9,9 @@ from paddle_geometric.nn.aggr import Aggregation
 from paddle_geometric.nn.aggr.fused import FusedAggregation
 from paddle_geometric.nn.dense import HeteroDictLinear
 from paddle_geometric.nn.resolver import aggregation_resolver
+from paddle_geometric.nn.initializer import linear_init_
 
-
+# @finshed
 class MultiAggregation(Aggregation):
     r"""Performs aggregations with one or more aggregators and combines
     aggregated results, as described in the `"Principal Neighbourhood
@@ -120,6 +121,21 @@ class MultiAggregation(Aggregation):
                 channels = {str(k): v for k, v, in enumerate(self.in_channels)}
                 self.lin_heads = HeteroDictLinear(channels, self.out_channels)
                 num_heads = mode_kwargs.pop('num_heads', 1)
+                if 'add_bias_kv' in mode_kwargs:
+                    raise ValueError("'add_bias_kv' is not supported for "
+                                     "the 'attn' combine mode.")
+                if 'add_zero_attn' in mode_kwargs:
+                    raise ValueError("'add_zero_attn' is not supported for "
+                                     "the 'attn' combine mode.")
+                if 'batch_first' in mode_kwargs:
+                    raise ValueError("'batch_first' is not supported for "
+                                     "the 'attn' combine mode.")
+                if 'dtype' in mode_kwargs:
+                    raise ValueError("'dtype' is not supported for "
+                                     "the 'attn' combine mode.")
+                if 'device' in mode_kwargs:
+                    raise ValueError("'device' is not supported for the 'attn' "
+                            "combine mode.")
                 self.multihead_attn = MultiHeadAttention(
                     embed_dim=self.out_channels,
                     num_heads=num_heads,
@@ -136,10 +152,13 @@ class MultiAggregation(Aggregation):
         for aggr in self.aggrs:
             aggr.reset_parameters()
         if self.mode == 'proj':
-            self.lin.reset_parameters()
+            linear_init_(self.lin)
         if self.mode == 'attn':
             self.lin_heads.reset_parameters()
-            self.multihead_attn._reset_parameters()
+    
+            for m in self.multihead_attn.sublayers():
+                if isinstance(m, Linear):
+                    linear_init_(m)
 
     def get_out_channels(self, in_channels: int) -> int:
         if self.out_channels is not None:
@@ -183,7 +202,7 @@ class MultiAggregation(Aggregation):
             x_dict = self.lin_heads(x_dict)
             xs = [x_dict[str(key)] for key in range(len(inputs))]
             x = paddle.stack(xs, axis=0)
-            attn_out, _ = self.multihead_attn(x, x, x)
+            attn_out = self.multihead_attn(x, x, x)[0]
             return paddle.mean(attn_out, axis=0)
 
         if hasattr(self, 'dense_combine'):

@@ -4,9 +4,12 @@ import paddle
 from paddle import Tensor
 from paddle.nn import GRUCell, Linear
 
+from paddle_geometric.experimental import disable_dynamic_shapes
 from paddle_geometric.nn.aggr import Aggregation
+import math
+from paddle_geometric.nn.initializer import linear_init_
 
-
+# @finshed
 class LCMAggregation(Aggregation):
     r"""The Learnable Commutative Monoid aggregation from the
     `"Learnable Commutative Monoids for Graph Neural Networks"
@@ -53,14 +56,19 @@ class LCMAggregation(Aggregation):
             self.lin = Linear(in_channels, out_channels)
         else:
             self.lin = None
-
         self.gru_cell = GRUCell(out_channels, out_channels)
 
     def reset_parameters(self):
         if self.project:
-            self.lin.reset_parameters()
-        self.gru_cell.reset_parameters()
+            linear_init_(self.lin)
 
+        stdv = 1.0 / math.sqrt(self.gru_cell.hidden_size) if self.gru_cell.hidden_size > 0 else 0
+        for weight in self.gru_cell.parameters():
+            with paddle.no_grad():
+                weight.set_value(
+                    paddle.uniform(shape=weight.shape, dtype=weight.dtype, min=-stdv, max=stdv)
+                )
+    @disable_dynamic_shapes(required_args=['dim_size', 'max_num_elements'])
     def forward(
         self,
         x: Tensor,
@@ -72,13 +80,13 @@ class LCMAggregation(Aggregation):
     ) -> Tensor:
 
         if self.project:
-            x = paddle.nn.functional.relu(self.lin(x))
+            x = self.lin(x).relu()
 
         x, _ = self.to_dense_batch(x, index, ptr, dim_size, dim,
                                    max_num_elements=max_num_elements)
 
         x = x.transpose([1, 0, 2])  # [num_neighbors, num_nodes, num_features]
-        _, num_nodes, num_features = x.shape
+        _, num_nodes, num_features = tuple(x.shape)
 
         depth = ceil(log2(x.shape[0]))
         for _ in range(depth):
@@ -91,7 +99,7 @@ class LCMAggregation(Aggregation):
             else:
                 remainder = None
 
-            left_right = x.reshape([-1, 2, num_nodes, num_features])
+            left_right = x.view([-1, 2, num_nodes, num_features])
             right_left = left_right.flip(axis=[1])
 
             left_right = left_right.reshape([-1, num_features])
@@ -100,12 +108,12 @@ class LCMAggregation(Aggregation):
             # Execute the GRUCell for all (left, right) pairs in the current
             # level of the tree in parallel:
             out = self.gru_cell(left_right, right_left)
-            out = out.reshape([-1, 2, num_nodes, num_features])
+            out = out.view([-1, 2, num_nodes, num_features])
             out = out.mean(axis=1)
             if remainder is not None:
                 out = paddle.concat([out, remainder], axis=0)
 
-            x = out.reshape([half_size, num_nodes, num_features])
+            x = out.view([half_size, num_nodes, num_features])
 
         assert x.shape[0] == 1
         return x.squeeze(0)

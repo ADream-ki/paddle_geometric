@@ -2,10 +2,13 @@ from typing import Optional
 import paddle
 from paddle import Tensor
 from paddle.nn import LSTM
+import warnings
 
 from paddle_geometric.nn.aggr import Aggregation
+from paddle_geometric.experimental import disable_dynamic_shapes
+import math
 
-
+# @finshed
 class LSTMAggregation(Aggregation):
     r"""Performs LSTM-style aggregation in which the elements to aggregate are
     interpreted as a sequence, as described in the `"Inductive Representation
@@ -32,13 +35,32 @@ class LSTMAggregation(Aggregation):
         super().__init__()
         self.in_channels = in_channels
         self.out_channels = out_channels
-        self.lstm = LSTM(in_channels, out_channels, batch_first=True, **kwargs)
+        if 'device' in kwargs:
+            warnings.warn("PaddlePaddle does not support specifying this parameter")
+        if 'dtype' in kwargs:
+            warnings.warn("PaddlePaddle does not support specifying this parameter")
+        if 'bias' in kwargs:
+            if kwargs['bias'] is False:
+                kwargs['bias_ih_attr'] = False
+                kwargs['bias_hh_attr'] = False
+        if 'bidirectional' in kwargs:
+            if kwargs['bidirectional'] == True:
+                kwargs['direction'] = "bidirectional"
+                del kwargs['bidirectional']
+            else:
+                kwargs['direction'] = "forward"
+
+        self.lstm = LSTM(in_channels, out_channels, time_major=False, **kwargs)
         self.reset_parameters()
 
     def reset_parameters(self):
-        for layer in self.lstm.parameters():
-            paddle.nn.initializer.XavierUniform()(layer)
-
+        stdv = 1.0 / math.sqrt(self.lstm.hidden_size) if self.lstm.hidden_size > 0 else 0
+        for weight in self.lstm.parameters():
+            with paddle.no_grad():
+                weight.set_value(
+                    paddle.uniform(shape=weight.shape, dtype=weight.dtype, min=-stdv, max=stdv)
+                )
+    @disable_dynamic_shapes(required_args=['dim_size', 'max_num_elements'])
     def forward(
         self,
         x: Tensor,

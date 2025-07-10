@@ -7,7 +7,7 @@ from paddle_geometric.nn.aggr import Aggregation, MultiAggregation
 from paddle_geometric.nn.resolver import aggregation_resolver as aggr_resolver
 from paddle_geometric.utils import degree
 
-
+# @finshed
 class DegreeScalerAggregation(Aggregation):
     r"""Combines one or more aggregators and transforms its output with one or
     more scalers as introduced in the `"Principal Neighbourhood Aggregation for
@@ -51,24 +51,27 @@ class DegreeScalerAggregation(Aggregation):
         self.scaler = [scaler] if isinstance(aggr, str) else scaler
 
         deg = deg.astype('float32')
-        N = int(deg.sum().item())
+        N = int(deg.sum())
         bin_degree = paddle.arange(deg.shape[0], dtype='float32')
 
-        self.init_avg_deg_lin = float((bin_degree * deg).sum().item()) / N
-        self.init_avg_deg_log = float(((bin_degree + 1).log() * deg).sum().item()) / N
+        self.init_avg_deg_lin = float((bin_degree * deg).sum()) / N
+        self.init_avg_deg_log = float(((bin_degree + 1).log() * deg).sum()) / N
 
         if train_norm:
-            self.avg_deg_lin = self.create_parameter(
-                shape=[1], default_initializer=paddle.nn.initializer.Constant(self.init_avg_deg_lin))
-            self.avg_deg_log = self.create_parameter(
-                shape=[1], default_initializer=paddle.nn.initializer.Constant(self.init_avg_deg_log))
+            self.avg_deg_lin = paddle.base.framework.EagerParamBase.from_tensor(
+                tensor=paddle.empty(shape=[1])
+            )
+            self.avg_deg_log = paddle.base.framework.EagerParamBase.from_tensor(
+                tensor=paddle.empty(shape=[1])
+            )
         else:
-            self.register_buffer('avg_deg_lin', paddle.to_tensor([self.init_avg_deg_lin]))
-            self.register_buffer('avg_deg_log', paddle.to_tensor([self.init_avg_deg_log]))
+            self.register_buffer(name="avg_deg_lin", tensor=paddle.empty(shape=[1]))
+            self.register_buffer(name="avg_deg_log", tensor=paddle.empty(shape=[1]))
+        self.reset_parameters()
 
     def reset_parameters(self):
-        self.avg_deg_lin.set_value(paddle.full([1], self.init_avg_deg_lin))
-        self.avg_deg_log.set_value(paddle.full([1], self.init_avg_deg_log))
+        self.avg_deg_lin.data.fill_(value=self.init_avg_deg_lin)
+        self.avg_deg_log.data.fill_(value=self.init_avg_deg_log)
 
     def forward(self, x: Tensor, index: Optional[Tensor] = None,
                 ptr: Optional[Tensor] = None, dim_size: Optional[int] = None,

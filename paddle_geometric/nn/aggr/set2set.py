@@ -5,8 +5,10 @@ from paddle import Tensor
 
 from paddle_geometric.nn.aggr import Aggregation
 from paddle_geometric.utils import softmax
+import warnings
+import math
 
-
+# @finshed
 class Set2Set(Aggregation):
     r"""The Set2Set aggregation operator based on iterative content-based
     attention, as described in the `"Order Matters: Sequence to sequence for
@@ -34,15 +36,32 @@ class Set2Set(Aggregation):
         self.in_channels = in_channels
         self.out_channels = 2 * in_channels
         self.processing_steps = processing_steps
+
+        if 'device' in kwargs:
+            warnings.warn("PaddlePaddle does not support specifying this parameter")
+        if 'dtype' in kwargs:
+            warnings.warn("PaddlePaddle does not support specifying this parameter")
+        if 'bias' in kwargs:
+            if kwargs['bias'] is False:
+                kwargs['bias_ih_attr'] = False
+                kwargs['bias_hh_attr'] = False
+        if 'bidirectional' in kwargs:
+            if kwargs['bidirectional'] == True:
+                kwargs['direction'] = "bidirectional"
+                del kwargs['bidirectional']
+            else:
+                kwargs['direction'] = "forward"
+
         self.lstm = paddle.nn.LSTM(self.out_channels, in_channels, **kwargs)
         self.reset_parameters()
 
     def reset_parameters(self):
-        for layer in self.lstm.sublayers():
-            if isinstance(layer, paddle.nn.Linear):
-                paddle.nn.initializer.XavierUniform()(layer.weight)
-                if layer.bias is not None:
-                    paddle.nn.initializer.Constant(0.0)(layer.bias)
+        stdv = 1.0 / math.sqrt(self.lstm.hidden_size) if self.lstm.hidden_size > 0 else 0
+        for weight in self.lstm.parameters():
+            with paddle.no_grad():
+                weight.set_value(
+                    paddle.uniform(shape=weight.shape, dtype=weight.dtype, min=-stdv, max=stdv)
+                )
 
     def forward(self, x: Tensor, index: Optional[Tensor] = None,
                 ptr: Optional[Tensor] = None, dim_size: Optional[int] = None,
@@ -59,7 +78,7 @@ class Set2Set(Aggregation):
 
         for _ in range(self.processing_steps):
             q, h = self.lstm(q_star.unsqueeze(0), h)
-            q = q.squeeze(0).reshape([dim_size, self.in_channels])
+            q = q.view([dim_size, self.in_channels])
             e = (x * q[index]).sum(axis=-1, keepdim=True)
             a = softmax(e, index, ptr, dim_size, dim)
             r = self.reduce(a * x, index, ptr, dim_size, dim, reduce='sum')
