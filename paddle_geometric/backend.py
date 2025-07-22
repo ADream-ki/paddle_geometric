@@ -25,31 +25,19 @@ def use_segment_matmul_heuristic(
     # NOTE This heuristic was learned on an A100 via sklearn using a simple
     # StandardScaler() -> LinearSVC() model.
     # For now, it is only used in combination with `RGCNConv`.
-    x = paddle.to_tensor([
-        num_segments,
-        max_segment_size,
-        in_channels,
-        out_channels,
-    ], dtype="float32")
-    mean = paddle.to_tensor([
-        125.11603189,
-        12133.21523472,
-        163.81222321,
-        32.43755536,
-    ], dtype="float32")
-    std = paddle.to_tensor([
-        163.34480422,
-        27572.94543809,
-        177.6426489,
-        56.82103934,
-    ], dtype="float32")
-    weight = paddle.to_tensor([
-        2.43877659e+00,
-        1.67583047e+00,
-        -5.20527282e-04,
-        3.43925501e-01,
-    ], dtype="float32")
+    x = paddle.to_tensor(
+        data=[num_segments, max_segment_size, in_channels, out_channels]
+    ).cast('float32')
+    mean = paddle.to_tensor(
+        data=[125.11603189, 12133.21523472, 163.81222321, 32.43755536]
+    )
+    std = paddle.to_tensor(
+        data=[163.34480422, 27572.94543809, 177.6426489, 56.82103934]
+    )
+    weight = paddle.to_tensor(
+        data=[2.43877659, 1.67583047, -0.000520527282, 0.343925501]
+    )
     bias = 1.20236999
-
     x = (x - mean) / std
+
     return bool(paddle.matmul(x, weight) >= bias)
