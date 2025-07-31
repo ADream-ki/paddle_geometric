@@ -7,9 +7,82 @@ from paddle.nn import Layer
 
 from paddle_geometric.typing import OptTensor
 from paddle_geometric.utils import degree, scatter
+from typing import Literal
+from paddle._typing import (
+    ParamAttrLike,
+)
+from paddle.nn.initializer import Constant
+
+class _InstanceNormBase(Layer):
+    """
+    This class is based class for InstanceNorm1D, 2d, 3d.
+
+    See InstanceNorm1D, InstanceNorm2D or InstanceNorm3D for more details.
+    """
+
+    scale: Tensor | None
+    bias: Tensor | None
+
+    def __init__(
+        self,
+        num_features: int,
+        epsilon: float = 1e-5,
+        momentum: float = 0.9,
+        weight_attr: ParamAttrLike | None = None,
+        bias_attr: ParamAttrLike | None = None,
+        data_format: Literal["NCHW"] = "NCHW",
+        name: str | None = None,
+    ) -> None:
+        super().__init__()
+
+        if weight_attr is False or bias_attr is False:
+            assert (
+                weight_attr == bias_attr
+            ), "weight_attr and bias_attr must be set to False at the same time in InstanceNorm"
+        self._momentum = momentum
+        self._epsilon = epsilon
+        self._weight_attr = weight_attr
+        self._bias_attr = bias_attr
+        self._num_features = num_features
+        self._data_format = data_format
+
+        if weight_attr is not False and bias_attr is not False:
+            self.scale = self.create_parameter(
+                attr=self._weight_attr,
+                shape=[num_features],
+                default_initializer=Constant(1.0),
+                is_bias=False,
+            )
+            self.bias = self.create_parameter(
+                attr=self._bias_attr,
+                shape=[num_features],
+                default_initializer=Constant(0.0),
+                is_bias=True,
+            )
+        else:
+            self.scale = None
+            self.bias = None
+
+    def _check_input_dim(self, input):
+        raise NotImplementedError("InstanceNorm Base error")
+
+    def forward(self, input: Tensor) -> Tensor:
+        self._check_input_dim(input)
+
+        return F.instance_norm(
+            input,
+            weight=self.scale,
+            bias=self.bias,
+            momentum=self._momentum,
+            eps=self._epsilon,
+            data_format=self._data_format,
+        )
+
+    def extra_repr(self) -> str:
+        return f'num_features={self._num_features}, epsilon={self._epsilon}'
 
 # @finshed
-class InstanceNorm(paddle.nn._InstanceNormBase):
+class InstanceNorm(_InstanceNormBase):
     r"""Applies instance normalization over each individual example in a batch
     of node features as described in the `"Instance Normalization: The Missing
     Ingredient for Fast Stylization" <https://arxiv.org/abs/1607.08022>`_
