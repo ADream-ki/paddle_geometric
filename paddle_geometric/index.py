@@ -20,10 +20,9 @@ from paddle import Tensor
 HANDLED_FUNCTIONS: Dict[Callable, Callable] = {}
 
 
-def ptr2index(ptr: Tensor, output_size: Optional[int] = None) -> Tensor:
-    index = paddle.arange(ptr.shape[0] - 1, dtype=ptr.dtype)
-    return index.repeat_interleave(paddle.diff(ptr), output_size=output_size)
-
+def ptr2index(ptr: paddle.Tensor, output_size: Optional[int] = None) -> paddle.Tensor:
+    index = paddle.arange(dtype=ptr.dtype, end=ptr.size - 1)
+    return index.repeat_interleave(repeats=ptr.diff())
 
 def index2ptr(index: Tensor, size: Optional[int] = None) -> Tensor:
     if size is None:
@@ -57,7 +56,7 @@ def assert_valid_dtype(tensor: Tensor) -> None:
 
 
 def assert_one_dimensional(tensor: Tensor) -> None:
-    if len(tensor.shape) != 1:
+    if tensor.dim() != 1:
         raise ValueError(f"'Index' needs to be one-dimensional "
                          f"(got {len(tensor.shape)} dimensions)")
 
@@ -108,7 +107,20 @@ class Index(Tensor):
     ) -> 'Index':
         if not isinstance(data, Tensor):
             data = paddle.to_tensor(data, *args, **kwargs)
-
+        elif len(args) > 0:
+            raise TypeError(
+                f"new() received an invalid combination of arguments - got (Tensor, {', '.join(str(type(arg)) for arg in args)})"
+            )
+        elif len(kwargs) > 0:
+            raise TypeError(
+                f"new() received invalid keyword arguments - got {set(kwargs.keys())})"
+            )
+        assert isinstance(data, paddle.Tensor)
+        indptr: Optional[paddle.Tensor] = None
+        if isinstance(data, cls):
+            indptr = data._indptr
+            dim_size = dim_size or data.dim_size
+            is_sorted = is_sorted or data.is_sorted
         assert_valid_dtype(data)
         assert_one_dimensional(data)
         assert_contiguous(data)

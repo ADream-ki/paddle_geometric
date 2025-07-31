@@ -10,6 +10,10 @@ def is_compiling() -> bool:
     r"""Returns :obj:`True` in case PaddlePaddle is compiling via
     :meth:`paddle.jit.to_static`.
     """
+    # if torch_geometric.typing.WITH_PT23:
+    #     return torch.compiler.is_compiling()
+    # if torch_geometric.typing.WITH_PT21:
+    #     return torch._dynamo.is_compiling()
     return False  # pragma: no cover
 
 
@@ -33,4 +37,10 @@ def compile(
     """
     warnings.warn("'paddle_geometric.compile' is deprecated in favor of "
                   "'paddle.jit.to_static'")
-    return paddle.jit.to_static(model, *args, **kwargs)
+    if paddle_geometric.typing.WITH_PP31:
+        return paddle.jit.to_static(model, *args, **kwargs)
+    elif paddle_geometric.typing.WITH_PP30:
+        return paddle.jit.to_static(model, backend='CINN', *args, **kwargs)
+    else:
+        raise RuntimeError
+

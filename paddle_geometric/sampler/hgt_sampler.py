@@ -59,22 +59,23 @@ class HGTSampler(BaseSampler):
         inputs: NodeSamplerInput,
     ) -> HeteroSamplerOutput:
 
-        node, row, col, edge = paddle.ops.sparse.hgt_sample(
-            self.colptr_dict,
-            self.row_dict,
-            {inputs.input_type: inputs.node},
-            self.num_samples,
-            self.num_hops,
-        )
+        raise NotImplementedError
+        # node, row, col, edge = paddle.ops.paddle_sparse.hgt_sample(
+        #     self.colptr_dict,
+        #     self.row_dict,
+        #     {inputs.input_type: inputs.node},
+        #     self.num_samples,
+        #     self.num_hops,
+        # )
 
-        return HeteroSamplerOutput(
-            node=node,
-            row=remap_keys(row, self.to_edge_type),
-            col=remap_keys(col, self.to_edge_type),
-            edge=remap_keys(edge, self.to_edge_type),
-            batch=None,
-            metadata=(inputs.input_id, inputs.time),
-        )
+        # return HeteroSamplerOutput(
+        #     node=node,
+        #     row=remap_keys(row, self.to_edge_type),
+        #     col=remap_keys(col, self.to_edge_type),
+        #     edge=remap_keys(edge, self.to_edge_type),
+        #     batch=None,
+        #     metadata=(inputs.input_id, inputs.time),
+        # )
 
     @property
     def edge_permutation(self) -> Union[OptTensor, Dict[EdgeType, OptTensor]]:

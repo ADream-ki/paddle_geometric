@@ -1,9 +1,5 @@
 from typing import Any, Tuple, Type, Union
 
-import paddle
-
-import paddle_geometric.typing
-
 # Placeholder for potential PaddlePaddle dynamic optimization in the future
 # Currently, no equivalent exists for `torch._dynamo.OptimizedModule`.
 

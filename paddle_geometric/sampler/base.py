@@ -235,7 +235,7 @@ class SamplerOutput:
 
 
 @dataclass
-class HeteroSamplerOutput:
+class HeteroSamplerOutput(CastMixin):
     r"""The sampling output of a :class:`~paddle_geometric.sampler.BaseSampler`
     on heterogeneous graphs.
 
@@ -370,8 +370,9 @@ class HeteroSamplerOutput:
         return out
 
 
+@dataclass(frozen=True)
 class NumNeighbors:
-    r"""The number of neighbors to sample in a homogeneous or heterogeneous
+    """The number of neighbors to sample in a homogeneous or heterogeneous
     graph. In heterogeneous graphs, may also take in a dictionary denoting
     the amount of neighbors to sample for individual edge types.
 
@@ -385,28 +386,26 @@ class NumNeighbors:
             types not specified in :obj:`values`. (default: :obj:`None`)
     """
 
+    values: Union[List[int], Dict[EdgeTypeStr, List[int]]]
+    default: Optional[List[int]] = None
+
     def __init__(
-            self,
-            values: Union[List[int], Dict[Tuple[str, str, str], List[int]]],
-            default: Optional[List[int]] = None,
+        self,
+        values: Union[List[int], Dict[EdgeType, List[int]]],
+        default: Optional[List[int]] = None,
     ):
         if isinstance(values, (tuple, list)) and default is not None:
-            raise ValueError(f"'default' must be set to 'None' in case a "
-                             f"single list is given as the number of "
-                             f"neighbors (got '{type(default)}')")
-
+            raise ValueError(
+                f"'default' must be set to 'None' in case a single list is given as the number of neighbors (got '{type(default)})'"
+            )
         if isinstance(values, dict):
-            values = {tuple(key): value for key, value in values.items()}
-
-        # Store values
-        self.values = values
-        self.default = default
+            values = {EdgeTypeStr(key): value for key, value in values.items()}
+        self.__dict__["values"] = values
+        self.__dict__["default"] = default
 
     def _get_values(
-            self,
-            edge_types: Optional[List[Tuple[str, str, str]]] = None,
-            mapped: bool = False,
-    ) -> Union[List[int], Dict[Union[Tuple[str, str, str], str], List[int]]]:
+        self, edge_types: Optional[List[EdgeType]] = None, mapped: bool = False
+    ) -> Union[List[int], Dict[Union[EdgeType, EdgeTypeStr], List[int]]]:
         if edge_types is not None:
             if isinstance(self.values, (tuple, list)):
                 default = self.values
@@ -414,71 +413,79 @@ class NumNeighbors:
                 default = self.default
             else:
                 assert False
-
             out = {}
             for edge_type in edge_types:
-                edge_type_str = tuple(edge_type)
+                edge_type_str = EdgeTypeStr(edge_type)
                 if edge_type_str in self.values:
-                    out[edge_type_str if mapped else edge_type] = self.values[edge_type_str]
+                    out[edge_type_str if mapped else edge_type] = self.values[
+                        edge_type_str
+                    ]
                 else:
                     if default is None:
-                        raise ValueError(f"Missing number of neighbors for "
-                                         f"edge type '{edge_type}'")
+                        raise ValueError(
+                            f"Missing number of neighbors for edge type '{edge_type}'"
+                        )
                     out[edge_type_str if mapped else edge_type] = default
-
         elif isinstance(self.values, dict) and not mapped:
-            out = {key: value for key, value in self.values.items()}
+            out = {key.to_tuple(): value for key, value in self.values.items()}
         else:
             out = copy.copy(self.values)
-
         if isinstance(out, dict):
             num_hops = {len(v) for v in out.values()}
             if len(num_hops) > 1:
-                raise ValueError(f"Number of hops must be the same across all "
-                                 f"edge types (got {len(num_hops)} different "
-                                 f"number of hops)")
-
+                raise ValueError(
+                    f"Number of hops must be the same across all edge types (got {len(num_hops)} different number of hops)"
+                )
         return out
 
     def get_values(
-            self,
-            edge_types: Optional[List[Tuple[str, str, str]]] = None,
-    ) -> Union[List[int], Dict[Tuple[str, str, str], List[int]]]:
-        if '_values' in self.__dict__:
-            return self.__dict__['_values']
+        self, edge_types: Optional[List[EdgeType]] = None
+    ) -> Union[List[int], Dict[EdgeType, List[int]]]:
+        """Returns the number of neighbors.
 
+        Args:
+            edge_types (List[Tuple[str, str, str]], optional): The edge types
+                to generate the number of neighbors for. (default: :obj:`None`)
+        """
+        if "_values" in self.__dict__:
+            return self.__dict__["_values"]
         values = self._get_values(edge_types, mapped=False)
-        self.__dict__['_values'] = values
+        self.__dict__["_values"] = values
         return values
 
     def get_mapped_values(
-            self,
-            edge_types: Optional[List[Tuple[str, str, str]]] = None,
+        self, edge_types: Optional[List[EdgeType]] = None
     ) -> Union[List[int], Dict[str, List[int]]]:
-        if '_mapped_values' in self.__dict__:
-            return self.__dict__['_mapped_values']
+        """Returns the number of neighbors.
+        For heterogeneous graphs, a dictionary is returned in which edge type
+        tuples are converted to strings.
 
+        Args:
+            edge_types (List[Tuple[str, str, str]], optional): The edge types
+                to generate the number of neighbors for. (default: :obj:`None`)
+        """
+        if "_mapped_values" in self.__dict__:
+            return self.__dict__["_mapped_values"]
         values = self._get_values(edge_types, mapped=True)
-        self.__dict__['_mapped_values'] = values
+        self.__dict__["_mapped_values"] = values
         return values
 
     @property
     def num_hops(self) -> int:
-        if '_num_hops' in self.__dict__:
-            return self.__dict__['_num_hops']
-
+        """Returns the number of hops."""
+        if "_num_hops" in self.__dict__:
+            return self.__dict__["_num_hops"]
         if isinstance(self.values, (tuple, list)):
             num_hops = max(len(self.values), len(self.default or []))
-        else:  # isinstance(self.values, dict):
+        else:
             num_hops = max([0] + [len(v) for v in self.values.values()])
             num_hops = max(num_hops, len(self.default or []))
-
-        self.__dict__['_num_hops'] = num_hops
+        self.__dict__["_num_hops"] = num_hops
         return num_hops
 
     def __len__(self) -> int:
+        """Returns the number of hops."""
         return self.num_hops
-
 
 class NegativeSamplingMode(Enum):
     # 'binary': Randomly sample negative edges in the graph.
@@ -489,10 +496,10 @@ class NegativeSamplingMode(Enum):
 
 
 @dataclass
-class NegativeSampling:
-    r"""The negative sampling configuration of a
-    :class:`~paddle_geometric.sampler.BaseSampler` when calling
-    :meth:`~paddle_geometric.sampler.BaseSampler.sample_from_edges`.
+class NegativeSampling(CastMixin):
+    """The negative sampling configuration of a
+    :class:`~torch_geometric.sampler.BaseSampler` when calling
+    :meth:`~torch_geometric.sampler.BaseSampler.sample_from_edges`.
 
     Args:
         mode (str): The negative sampling mode
@@ -503,32 +510,41 @@ class NegativeSampling:
             destination nodes for each positive source node.
         amount (int or float, optional): The ratio of sampled negative edges to
             the number of positive edges. (default: :obj:`1`)
-        src_weight (Tensor, optional): A node-level vector determining
+        src_weight (torch.Tensor, optional): A node-level vector determining
             the sampling of source nodes. Does not necessarily need to sum up
             to one. If not given, negative nodes will be sampled uniformly.
             (default: :obj:`None`)
-        dst_weight (Tensor, optional): A node-level vector determining
+        dst_weight (torch.Tensor, optional): A node-level vector determining
             the sampling of destination nodes. Does not necessarily need to sum
             up to one. If not given, negative nodes will be sampled uniformly.
             (default: :obj:`None`)
     """
+
     mode: NegativeSamplingMode
     amount: Union[int, float] = 1
-    src_weight: Optional[Tensor] = None
-    dst_weight: Optional[Tensor] = None
+    src_weight: Optional[paddle.Tensor] = None
+    dst_weight: Optional[paddle.Tensor] = None
 
-    def __post_init__(self):
+    def __init__(
+        self,
+        mode: Union[NegativeSamplingMode, str],
+        amount: Union[int, float] = 1,
+        src_weight: Optional[paddle.Tensor] = None,
+        dst_weight: Optional[paddle.Tensor] = None,
+    ):
+        self.mode = NegativeSamplingMode(mode)
+        self.amount = amount
+        self.src_weight = src_weight
+        self.dst_weight = dst_weight
         if self.amount <= 0:
-            raise ValueError(f"The attribute 'amount' needs to be positive "
-                             f"for '{self.__class__.__name__}' "
-                             f"(got {self.amount})")
-
+            raise ValueError(
+                f"The attribute 'amount' needs to be positive for '{self.__class__.__name__}' (got {self.amount})"
+            )
         if self.is_triplet():
             if self.amount != math.ceil(self.amount):
-                raise ValueError(f"The attribute 'amount' needs to be an "
-                                 f"integer for '{self.__class__.__name__}' "
-                                 f"with 'triplet' negative sampling "
-                                 f"(got {self.amount}).")
+                raise ValueError(
+                    f"The attribute 'amount' needs to be an integer for '{self.__class__.__name__}' with 'triplet' negative sampling (got {self.amount})."
+                )
             self.amount = math.ceil(self.amount)
 
     def is_binary(self) -> bool:
@@ -540,29 +556,26 @@ class NegativeSampling:
     def sample(
         self,
         num_samples: int,
-        endpoint: Literal['src', 'dst'],
+        endpoint: Literal["src", "dst"],
         num_nodes: Optional[int] = None,
-    ) -> Tensor:
-        r"""Generates :obj:`num_samples` negative samples."""
-        weight = self.src_weight if endpoint == 'src' else self.dst_weight
-
+    ) -> paddle.Tensor:
+        """Generates :obj:`num_samples` negative samples."""
+        weight = self.src_weight if endpoint == "src" else self.dst_weight
         if weight is None:
             if num_nodes is None:
                 raise ValueError(
-                    f"Cannot sample negatives in '{self.__class__.__name__}' "
-                    f"without passing the 'num_nodes' argument")
-            return paddle.randint(low=0, high=num_nodes, shape=(num_samples, ))
-
-        if num_nodes is not None and weight.shape[0] != num_nodes:
+                    f"Cannot sample negatives in '{self.__class__.__name__}' without passing the 'num_nodes' argument"
+                )
+            return paddle.randint(low=0, high=num_nodes, shape=(num_samples,))
+        if num_nodes is not None and weight.size != num_nodes:
             raise ValueError(
-                f"The 'weight' attribute in '{self.__class__.__name__}' "
-                f"needs to match the number of nodes {num_nodes} "
-                f"(got {self.src_weight.shape[0]})")
-        return paddle.multinomial(weight, num_samples, replacement=True)
+                f"The 'weight' attribute in '{self.__class__.__name__}' needs to match the number of nodes {num_nodes} (got {self.weight.size})"
+            )
+        return paddle.multinomial(x=weight, num_samples=num_samples, replacement=True)
 
 
-class BaseSampler:
-    r"""An abstract base class that initializes a graph sampler and provides
+class BaseSampler(ABC):
+    """An abstract base class that initializes a graph sampler and provides
     :meth:`sample_from_nodes` and :meth:`sample_from_edges` routines.
 
     .. note ::
@@ -573,12 +586,11 @@ class BaseSampler:
         As such, it is recommended to limit the amount of information stored in
         the sampler.
     """
+
     def sample_from_nodes(
-        self,
-        index: 'NodeSamplerInput',
-        **kwargs,
-    ) -> Union['HeteroSamplerOutput', 'SamplerOutput']:
-        r"""Performs sampling from the nodes specified in :obj:`index`,
+        self, index: NodeSamplerInput, **kwargs
+    ) -> Union[HeteroSamplerOutput, SamplerOutput]:
+        """Performs sampling from the nodes specified in :obj:`index`,
         returning a sampled subgraph in the specified output format.
 
         The :obj:`index` is a tuple holding the following information:
@@ -594,11 +606,9 @@ class BaseSampler:
         raise NotImplementedError
 
     def sample_from_edges(
-        self,
-        index: 'EdgeSamplerInput',
-        neg_sampling: Optional[NegativeSampling] = None,
-    ) -> Union['HeteroSamplerOutput', 'SamplerOutput']:
-        r"""Performs sampling from the edges specified in :obj:`index`,
+        self, index: EdgeSamplerInput, neg_sampling: Optional[NegativeSampling] = None
+    ) -> Union[HeteroSamplerOutput, SamplerOutput]:
+        """Performs sampling from the edges specified in :obj:`index`,
         returning a sampled subgraph in the specified output format.
 
         The :obj:`index` is a tuple holding the following information:
@@ -617,8 +627,8 @@ class BaseSampler:
         raise NotImplementedError
 
     @property
-    def edge_permutation(self) -> Union[None, Dict[str, None]]:
-        r"""If the sampler performs any modification of edge ordering in the
+    def edge_permutation(self) -> Union[OptTensor, Dict[EdgeType, OptTensor]]:
+        """If the sampler performs any modification of edge ordering in the
         original graph, this function is expected to return the permutation
         tensor that defines the permutation from the edges in the original
         graph and the edges used in the sampler. If no such permutation was

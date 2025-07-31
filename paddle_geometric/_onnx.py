@@ -9,6 +9,8 @@ def is_in_onnx_export() -> bool:
     """
     if is_compiling():
         return False
-    if paddle.jit.to_static:  # Paddle 没有完全等价于 `torch.jit.is_scripting` 的函数，用 `to_static` 替代
-        return False
-    return paddle.onnx.is_in_onnx_export()
+    # if paddle.jit.to_static:  # Paddle 没有完全等价于 `torch.jit.is_scripting` 的函数，用 `to_static` 替代
+    #     return False
+    # return paddle.onnx.is_in_onnx_export()
+    # return torch.onnx.is_in_onnx_export()
+    return False

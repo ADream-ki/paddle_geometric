@@ -7,6 +7,7 @@ from typing import Callable, Dict, List, Literal, Optional, Tuple, Union
 import paddle
 from paddle import Tensor
 
+import paddle_geometric
 from paddle_geometric.data import (
     Data,
     FeatureStore,
@@ -55,8 +56,11 @@ class NeighborSampler(BaseSampler):
                           f"'{self.__class__.__name__}' is deprecated. Use "
                           f"`subgraph_type='induced'` instead.")
 
-        if (not sys.platform.startswith('linux') and
-                subgraph_type != SubgraphType.induced):
+        if (
+            not paddle_geometric.typing.WITH_PYG_LIB
+            and sys.platform == "linux"
+            and subgraph_type != SubgraphType.induced
+        ):
             warnings.warn(f"Using '{self.__class__.__name__}' without "
                           f"'subgraph_type=induced' on non-Linux systems may "
                           f"lead to degraded performance.")
@@ -86,14 +90,13 @@ class NeighborSampler(BaseSampler):
                 edge_time=self.edge_time)
 
             if self.edge_time is not None and self.perm is not None:
-                self.edge_time = paddle.index_select(self.edge_time, self.perm)
+                self.edge_time = self.edge_time[self.perm]
 
             self.edge_weight: Optional[Tensor] = None
             if weight_attr is not None:
                 self.edge_weight = data[weight_attr]
                 if self.perm is not None:
-                    self.edge_weight = paddle.index_select(self.edge_weight, self.perm)
-
+                    self.edge_weight = self.edge_weight[self.perm]
         elif self.data_type == DataType.heterogeneous:
             self.node_types, self.edge_types = data.metadata()
 
@@ -143,16 +146,15 @@ class NeighborSampler(BaseSampler):
             if self.edge_time is not None:
                 for edge_type, edge_time in self.edge_time.items():
                     if self.perm.get(edge_type, None) is not None:
-                        edge_time = paddle.index_select(edge_time, self.perm[edge_type])
+                        edge_time = edge_time[self.perm[edge_type]]
                         self.edge_time[edge_type] = edge_time
                 self.edge_time = remap_keys(self.edge_time, self.to_rel_type)
-
-            self.edge_weight: Optional[Dict[EdgeType, Tensor]] = None
+            self.edge_weight: Optional[Dict[EdgeType, paddle.Tensor]] = None
             if weight_attr is not None:
                 self.edge_weight = data.collect(weight_attr)
                 for edge_type, edge_weight in self.edge_weight.items():
                     if self.perm.get(edge_type, None) is not None:
-                        edge_weight = paddle.index_select(edge_weight, self.perm[edge_type])
+                        edge_weight = edge_weight[self.perm[edge_type]]
                         self.edge_weight[edge_type] = edge_weight
                 self.edge_weight = remap_keys(self.edge_weight, self.to_rel_type)
 
@@ -348,7 +350,7 @@ class NeighborSampler(BaseSampler):
         """
         if isinstance(seed, dict):  # Heterogeneous sampling:
             # TODO Support induced subgraph sampling in `pgl-lib`.
-            if (paddle_geometric.typing.WITH_PGL_LIB
+            if (paddle_geometric.typing.WITH_PYG_LIB
                     and self.subgraph_type != SubgraphType.induced):
                 # TODO Ensure `seed` inherits dtype from `colptr`
                 colptrs = list(self.colptr_dict.values())
@@ -440,7 +442,7 @@ class NeighborSampler(BaseSampler):
             )
         else:  # Homogeneous sampling:
             # TODO Support induced subgraph sampling in `pgl-lib`.
-            if (paddle_geometric.typing.WITH_PGL_LIB
+            if (paddle_geometric.typing.WITH_PYG_LIB
                     and self.subgraph_type != SubgraphType.induced):
 
                 args = (

@@ -79,10 +79,11 @@ def to_csc(
     perm = perm.to(device) if perm is not None else None
 
     if not colptr.is_cuda and share_memory:
-        colptr.share_memory_()
-        row.share_memory_()
-        if perm is not None:
-            perm.share_memory_()
+        raise NotImplementedError("Share memory for colptr not supported")
+        # colptr.share_memory_()
+        # row.share_memory_()
+        # if perm is not None:
+        #     perm.share_memory_()
 
     return colptr, row, perm
 
@@ -119,26 +120,16 @@ def to_bidirectional(
     edge_id: OptTensor = None,
     rev_edge_id: OptTensor = None,
 ) -> Tuple[paddle.Tensor, paddle.Tensor, OptTensor]:
-
-    assert row.numel() == col.numel()
-    assert rev_row.numel() == rev_col.numel()
-
-    edge_index = row.new_empty([2, row.numel() + rev_row.numel()])
-    edge_index[0, :row.numel()] = row
-    edge_index[1, :row.numel()] = col
-    edge_index[0, row.numel():] = rev_col
-    edge_index[1, row.numel():] = rev_row
-
+    assert row.size == col.size
+    assert rev_row.size == rev_col.size
+    edge_index = paddle.empty(shape=[2, row.size + rev_row.size], dtype=row.dtype)
+    edge_index[0, : row.size] = row
+    edge_index[1, : row.size] = col
+    edge_index[0, row.size :] = rev_col
+    edge_index[1, row.size :] = rev_row
     if edge_id is not None:
-        edge_id = paddle.concat([edge_id, rev_edge_id], axis=0)
-
-    (row, col), edge_id = coalesce(
-        edge_index,
-        edge_id,
-        sort_by_row=False,
-        reduce='any',
-    )
-
+        edge_id = paddle.concat(x=[edge_id, rev_edge_id], axis=0)
+    (row, col), edge_id = coalesce(edge_index, edge_id, sort_by_row=False, reduce="any")
     return row, col, edge_id
 
 
@@ -147,13 +138,9 @@ def to_bidirectional(
 X, Y = TypeVar('X'), TypeVar('Y')
 
 
+
 def remap_keys(
-    inputs: Dict[X, Any],
-    mapping: Dict[X, Y],
-    exclude: Optional[List[X]] = None,
+    inputs: Dict[X, Any], mapping: Dict[X, Y], exclude: Optional[List[X]] = None
 ) -> Dict[Union[X, Y], Any]:
     exclude = exclude or []
-    return {
-        k if k in exclude else mapping.get(k, k): v
-        for k, v in inputs.items()
-    }
+    return {(k if k in exclude else mapping.get(k, k)): v for k, v in inputs.items()}
