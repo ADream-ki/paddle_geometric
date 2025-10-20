@@ -1,7 +1,4 @@
-import inspect
 import os
-import sys
-import typing
 import warnings
 from typing import Any, Dict, List, Optional, Set, Tuple, Union
 
@@ -14,7 +11,6 @@ WITH_PADDLE_DEV = True
 WITH_PP30 = int(paddle.__version__.split(sep=".")[0]) >= 3
 WITH_PP31 = WITH_PP30 and int(paddle.__version__.split(sep=".")[1]) >= 1
 WITH_PP32 = WITH_PP30 and int(paddle.__version__.split(sep=".")[1]) >= 2
-
 
 WITH_WINDOWS = os.name == 'nt'
 NO_MKL = 'OFF' in paddle.version.mkl() or WITH_WINDOWS
@@ -34,7 +30,8 @@ try:
     # WITH_PYG_LIB = True
     # WITH_GMM = hasattr(pyg_lib.ops, 'grouped_matmul')
     # WITH_SEGMM = hasattr(pyg_lib.ops, 'segment_matmul')
-    # if WITH_SEGMM and 'pytest' in sys.modules and paddle.device.is_compiled_with_cuda():
+    # if WITH_SEGMM and 'pytest' in sys.modules \
+    #       and paddle.device.is_compiled_with_cuda():
     #     try:
     #         x = paddle.randn(shape=[3, 4])
     #         ptr = paddle.to_tensor(data=[0, 2, 3], place="gpu")
@@ -68,9 +65,9 @@ except Exception as e:
     WITH_WEIGHTED_NEIGHBOR_SAMPLE = False
 
 try:
-    raise ImportError
-    # import paddle_scatter  # noqa
-    # WITH_PADDLE_SCATTER = True
+    # raise ImportError
+    import paddle_scatter  # noqa
+    WITH_PADDLE_SCATTER = True
 except Exception as e:
     if not isinstance(e, ImportError):  # pragma: no cover
         warnings.warn(f"An issue occurred while importing 'paddle-scatter'. "
@@ -82,7 +79,8 @@ try:
     raise ImportError
     # import paddle_cluster  # noqa
     # WITH_PADDLE_CLUSTER = True
-    # WITH_PADDLE_CLUSTER_BATCH_SIZE = 'batch_size' in paddle_cluster.knn.__doc__
+    # WITH_PADDLE_CLUSTER_BATCH_SIZE =
+    # 'batch_size' in paddle_cluster.knn.__doc__
 except Exception as e:
     if not isinstance(e, ImportError):  # pragma: no cover
         warnings.warn(f"An issue occurred while importing 'paddle-cluster'. "
@@ -228,6 +226,7 @@ except Exception as e:
                               layout: Optional[str] = None) -> SparseTensor:
             raise ImportError("'masked_select_nnz' requires 'paddle-sparse'")
 
+
 try:
     raise ImportError
     # import paddle_frame  # noqa
@@ -239,6 +238,7 @@ except Exception:
 
     class TensorFrame:  # type: ignore
         pass
+
 
 class MockPaddleCSCTensor:
     def __init__(
