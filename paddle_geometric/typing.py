@@ -17,6 +17,7 @@ WITH_PP32 = WITH_PP30 and int(paddle.__version__.split(sep=".")[1]) >= 2
 
 
 WITH_WINDOWS = os.name == 'nt'
+NO_MKL = 'OFF' in paddle.version.mkl() or WITH_WINDOWS
 
 MAX_INT64 = paddle.iinfo(paddle.int64).max
 
@@ -67,9 +68,9 @@ except Exception as e:
     WITH_WEIGHTED_NEIGHBOR_SAMPLE = False
 
 try:
-    # raise ImportError
-    import paddle_scatter  # noqa
-    WITH_PADDLE_SCATTER = True
+    raise ImportError
+    # import paddle_scatter  # noqa
+    # WITH_PADDLE_SCATTER = True
 except Exception as e:
     if not isinstance(e, ImportError):  # pragma: no cover
         warnings.warn(f"An issue occurred while importing 'paddle-scatter'. "
@@ -96,10 +97,10 @@ except Exception as e:
     paddle_cluster = PaddleCluster()
 
 try:
-    raise ImportError
-    # import paddle_sparse  # noqa
-    # from paddle_sparse import SparseStorage, SparseTensor
-    # WITH_PADDLE_SPARSE = True
+    # raise ImportError
+    import paddle_sparse  # noqa
+    from paddle_sparse import SparseStorage, SparseTensor
+    WITH_PADDLE_SPARSE = True
 except Exception as e:
     if not isinstance(e, ImportError):  # pragma: no cover
         warnings.warn(f"An issue occurred while importing 'paddle-sparse'. "
