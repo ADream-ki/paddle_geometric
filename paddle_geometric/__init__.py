@@ -1,11 +1,16 @@
 from collections import defaultdict
 
 import paddle
+import paddle_sparse  # noqa
+from paddle_sparse import SparseStorage, SparseTensor
+
 import paddle_geometric.typing
+
+from .dispatcher import BaseTensorSubclass, HANDLED_FUNCTIONS, register_for, implements
 
 from ._compile import compile, is_compiling
 from ._onnx import is_in_onnx_export
-from .index import Index
+from .index import Index, CatMetadata
 from .edge_index import EdgeIndex
 from .pytree import pytree
 from .seed import seed_everything
