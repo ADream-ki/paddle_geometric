@@ -318,3 +318,74 @@ def _Tensor_div(self, *args, **kwargs):
 
 paddle.Tensor.div = _Tensor_div
 paddle.Tensor.divide = _Tensor_div
+
+
+def _Tensor_cpu(self):
+    if self.is_sparse_coo():
+        if not self.place.is_cpu_place():
+            res = paddle.sparse.sparse_coo_tensor(
+                indices=self.indices(), values=self.values(), shape=self.shape,
+                dtype=self.dtype, stop_gradient=self.stop_gradient,
+                place="cpu")
+        else:
+            res = self
+    elif self.is_sparse_csr():
+        if not self.place.is_cpu_place():
+            res = paddle.sparse.sparse_csr_tensor(
+                crows=self.crows(),
+                cols=self.cols(),
+                values=self.values(),
+                shape=self.shape,
+                dtype=self.dtype,
+                place="cpu",
+                stop_gradient=self.stop_gradient,
+            )
+        else:
+            res = self
+    else:
+        res = self.to("cpu")
+    return res
+
+
+paddle.Tensor.cpu = _Tensor_cpu
+
+
+def _Tensor_cuda(self, device_id=None, blocking=True):
+    def get_res_place(device_id):
+
+        if device_id is None:
+            res_place = paddle.base.framework._current_expected_place()
+            if not isinstance(res_place, paddle.core.CUDAPlace):
+                res_place = paddle.core.CUDAPlace(0)
+        elif isinstance(device_id, int):
+            res_place = paddle.core.CUDAPlace(device_id)
+        else:
+            raise ValueError("device_id must be int|None")
+        return res_place
+
+    res_place = get_res_place(device_id=device_id)
+    if self.place._equals(res_place):
+        return self
+    if self.is_sparse_coo():
+        res = paddle.sparse.sparse_coo_tensor(indices=self.indices(),
+                                              values=self.values(),
+                                              shape=self.shape,
+                                              dtype=self.dtype,
+                                              stop_gradient=self.stop_gradient,
+                                              place=res_place)
+    elif self.is_sparse_csr():
+        res = paddle.sparse.sparse_csr_tensor(
+            crows=self.crows(),
+            cols=self.cols(),
+            values=self.values(),
+            shape=self.shape,
+            dtype=self.dtype,
+            place=res_place,
+            stop_gradient=self.stop_gradient,
+        )
+    else:
+        res = self.to(device=res_place, blocking=blocking)
+    return res
+
+
+paddle.Tensor.cuda = _Tensor_cuda

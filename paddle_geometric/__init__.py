@@ -1,18 +1,18 @@
-from collections import defaultdict
-
-import paddle
+import paddle  # noqa
 import paddle_sparse  # noqa
-from paddle_sparse import SparseStorage, SparseTensor
+from paddle_sparse import SparseStorage, SparseTensor  # noqa
+
+from .paddle_utils import *  # noqa
 
 import paddle_geometric.typing
 
-from .dispatcher import BaseTensorSubclass, HANDLED_FUNCTIONS, register_for, implements
+from .dispatcher import BaseTensorSubclass, HANDLED_FUNCTIONS, register_for, implements  # noqa
 
 from ._compile import compile, is_compiling
 from ._onnx import is_in_onnx_export
-from .index import Index, CatMetadata
+from .index import Index, CatMetadata  # noqa
 from .edge_index import EdgeIndex
-from .pytree import pytree
+from .pytree import pytree  # noqa
 from .seed import seed_everything
 from .home import get_home_dir, set_home_dir
 from .device import is_mps_available, is_xpu_available, device, place2devicestr
@@ -61,4 +61,3 @@ __all__ = [
     'paddle_geometric',
     '__version__',
 ]
-
