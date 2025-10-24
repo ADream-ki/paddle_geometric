@@ -827,7 +827,7 @@ class Data(BaseData, FeatureStore, GraphStore):
             edge_type_names (List[Tuple[str, str, str]], optional): The names
                 of edge types. (default: :obj:`None`)
         """
-        from torch_geometric.data import HeteroData
+        from paddle_geometric.data import HeteroData
 
         if node_type is None:
             node_type = self._store.get('node_type', None)
@@ -904,9 +904,14 @@ class Data(BaseData, FeatureStore, GraphStore):
                 if attr in {'node_type', 'edge_type', 'ptr'}:
                     continue
                 elif attr == 'edge_index':
-                    edge_index = value[:, edge_ids[i]]
-                    edge_index[0] = index_map[edge_index[0]]
-                    edge_index[1] = index_map[edge_index[1]]
+                    if paddle.is_empty(edge_ids[i]):
+                        edge_index = paddle.empty([value.shape[0], 0],
+                                                  dtype=value.dtype,
+                                                  device=value.place)
+                    else:
+                        edge_index = value[:, edge_ids[i]]
+                        edge_index[0] = index_map[edge_index[0]]
+                        edge_index[1] = index_map[edge_index[1]]
                     data[key].edge_index = edge_index
                 elif isinstance(value, Tensor) and self.is_edge_attr(attr):
                     cat_dim = self.__cat_dim__(attr, value)

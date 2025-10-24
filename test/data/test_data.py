@@ -78,11 +78,11 @@ def test_data():
     assert paddle.allclose(data.x, out['0'].x)
     assert paddle.allclose(data.edge_index, out['0', '0'].edge_index)
 
-    # data.edge_type = paddle.to_tensor([0, 0, 1, 0])
-    # out = data.to_heterogeneous()
-    # assert paddle.allclose(data.x, out['0'].x)
-    # assert [store.num_edges for store in out.edge_stores] == [3, 1]
-    # data.edge_type = None
+    data.edge_type = paddle.to_tensor([0, 0, 1, 0])
+    out = data.to_heterogeneous()
+    assert paddle.allclose(data.x, out['0'].x)
+    assert [store.num_edges for store in out.edge_stores] == [3, 1]
+    data.edge_type = None
 
     data['x'] = x + 1
     assert data.x.tolist() == (x + 1).tolist()
@@ -192,26 +192,29 @@ def test_data_attr_cache_not_shared():
     assert not data.is_node_attr('time')
 
 
-# def test_to_heterogeneous_empty_edge_index():
-#     data = Data(
-#         x=paddle.randn(shape=[5, 10]),
-#         edge_index=paddle.empty(2, 0, dtype=paddle.int64),
-#     )
-#     hetero_data = data.to_heterogeneous()
-#     assert hetero_data.node_types == ['0']
-#     assert hetero_data.edge_types == []
-#     assert len(hetero_data) == 1
-#     assert paddle.equal(hetero_data['0'].x, data.x)
+def test_to_heterogeneous_empty_edge_index():
+    data = Data(
+        x=paddle.randn(shape=[5, 10]),
+        edge_index=paddle.empty([2, 0], dtype=paddle.int64),
+    )
+    hetero_data = data.to_heterogeneous()
+    assert hetero_data.node_types == ['0']
+    assert hetero_data.edge_types == []
+    assert len(hetero_data) == 1
+    assert paddle.equal_all(hetero_data['0'].x, data.x).item()
 
-#     hetero_data = data.to_heterogeneous(
-#         node_type_names=['0'],
-#         edge_type_names=[('0', 'to', '0')],
-#     )
-#     assert hetero_data.node_types == ['0']
-#     assert hetero_data.edge_types == [('0', 'to', '0')]
-#     assert len(hetero_data) == 2
-#     assert paddle.equal(hetero_data['0'].x, data.x)
-#     assert paddle.equal(hetero_data['0', 'to', '0'].edge_index, data.edge_index)
+    import pdb
+    pdb.set_trace()
+    hetero_data = data.to_heterogeneous(
+        node_type_names=['0'],
+        edge_type_names=[('0', 'to', '0')],
+    )
+    assert hetero_data.node_types == ['0']
+    assert hetero_data.edge_types == [('0', 'to', '0')]
+    assert len(hetero_data) == 2
+    assert paddle.equal_all(hetero_data['0'].x, data.x).item()
+    assert paddle.equal_all(hetero_data['0', 'to', '0'].edge_index,
+                            data.edge_index).item()
 
 
 def test_data_subgraph():
