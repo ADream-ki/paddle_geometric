@@ -463,7 +463,7 @@ def cat_coo(tensors: List[Tensor], dim: Union[int, Tuple[int, int]]) -> Tensor:
                                           place=tensor.place)
                 indices.append(tensor.indices() + offset)
             values.append(tensor.values())
-            num_rows += tensor.shape[1]
+            num_rows += tensor.shape[0]
             num_cols = max(num_cols, tensor.shape[1])
             if not tensor.is_coalesced():
                 is_coalesced = False
