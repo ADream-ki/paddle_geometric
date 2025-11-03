@@ -55,7 +55,9 @@ def narrow(src: Union[Tensor, List[Any]], dim: int, start: int,
     if isinstance(src, Tensor) and is_paddle_sparse_tensor(src):
         # Paddle currently does not fully support sparse tensor narrowing.
         index = paddle.arange(start, start + length, dtype='int64')
-        return paddle.index_select(src, index=index, axis=dim)
+        # return paddle.index_select(src, index=index, axis=dim)
+        return src.to_dense().index_select(index=index,
+                                           axis=dim).to_sparse_coo(src.ndim)
 
     if isinstance(src, Tensor):
         return src.narrow(dim, start, length)
