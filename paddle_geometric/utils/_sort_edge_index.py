@@ -1,5 +1,4 @@
-import typing
-from typing import List, Optional, Tuple, Union
+from typing import List, Optional, Tuple, Union, overload
 
 import paddle
 from paddle import Tensor
@@ -10,8 +9,6 @@ from paddle_geometric.edge_index import SortOrder
 from paddle_geometric.typing import OptTensor
 from paddle_geometric.utils import index_sort, lexsort
 from paddle_geometric.utils.num_nodes import maybe_num_nodes
-
-from typing import overload
 
 MISSING = '???'
 
@@ -56,12 +53,16 @@ def sort_edge_index(  # noqa: F811
     pass
 
 
-def sort_edge_index(  # noqa: F811
-    edge_index: Tensor,
-    edge_attr: Union[OptTensor, List[Tensor], str] = MISSING,
+def sort_edge_index(
+    edge_index: paddle.Tensor,
+    edge_attr: Union[OptTensor, List[paddle.Tensor], str] = MISSING,
     num_nodes: Optional[int] = None,
     sort_by_row: bool = True,
-) -> Union[Tensor, Tuple[Tensor, OptTensor], Tuple[Tensor, List[Tensor]]]:
+) -> Union[
+        paddle.Tensor,
+        Tuple[paddle.Tensor, OptTensor],
+        Tuple[paddle.Tensor, List[paddle.Tensor]],
+]:
     """Row-wise sorts :obj:`edge_index`.
 
     Args:
@@ -102,37 +103,30 @@ def sort_edge_index(  # noqa: F811
                 [1]]))
     """
     num_nodes = maybe_num_nodes(edge_index, num_nodes)
-
     if num_nodes * num_nodes > paddle_geometric.typing.MAX_INT64:
-        # if not torch_geometric.typing.WITH_PT113:
-        #     raise ValueError("'sort_edge_index' will result in an overflow")
         perm = lexsort(keys=[
-            edge_index[int(sort_by_row)],
-            edge_index[1 - int(sort_by_row)],
+            edge_index[int(sort_by_row)], edge_index[1 - int(sort_by_row)]
         ])
     else:
         idx = edge_index[1 - int(sort_by_row)] * num_nodes
         idx += edge_index[int(sort_by_row)]
         _, perm = index_sort(idx, max_value=num_nodes * num_nodes)
-
-    if isinstance(edge_index, Tensor):
+    if isinstance(edge_index, paddle.Tensor):
         is_undirected = False
-        if not paddle.in_dynamic_mode() and isinstance(edge_index, EdgeIndex):
+        if isinstance(edge_index, EdgeIndex):
             is_undirected = edge_index.is_undirected
         edge_index = edge_index[:, perm]
-        if not paddle.in_dynamic_mode() and isinstance(edge_index, EdgeIndex):
-            edge_index._sort_order = SortOrder('row' if sort_by_row else 'col')
+        if isinstance(edge_index, EdgeIndex):
+            edge_index._sort_order = SortOrder("row" if sort_by_row else "col")
             edge_index._is_undirected = is_undirected
     elif isinstance(edge_index, tuple):
-        edge_index = (edge_index[0][perm], edge_index[1][perm])
+        edge_index = edge_index[0][perm], edge_index[1][perm]
     else:
         raise NotImplementedError
-
     if edge_attr is None:
         return edge_index, None
-    if isinstance(edge_attr, Tensor):
+    if isinstance(edge_attr, paddle.Tensor):
         return edge_index, edge_attr[perm]
     if isinstance(edge_attr, (list, tuple)):
         return edge_index, [e[perm] for e in edge_attr]
-
     return edge_index
