@@ -22,11 +22,11 @@ def test_point_net_conv():
     conv = PointNetConv(local_nn, global_nn)
     assert str(conv) == (
         'PointNetConv(local_nn=Sequential(\n'
-        '  (0): Linear(in_features=19, out_features=32, bias=True)\n'
+        '  (0): Linear(in_features=19, out_features=32, dtype=float32)\n'
         '  (1): ReLU()\n'
-        '  (2): Linear(in_features=32, out_features=32, bias=True)\n'
+        '  (2): Linear(in_features=32, out_features=32, dtype=float32)\n'
         '), global_nn=Sequential(\n'
-        '  (0): Linear(in_features=32, out_features=32, bias=True)\n'
+        '  (0): Linear(in_features=32, out_features=32, dtype=float32)\n'
         '))')
     out = conv(x1, pos1, edge_index)
     assert out.shape== (4, 32)

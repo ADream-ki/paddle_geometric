@@ -69,8 +69,8 @@ def test_fa_conv():
 
     result = conv(x, x_0, adj1.t(), return_attention_weights=True)
     assert paddle.allclose(result[0], out, atol=1e-6)
-    assert result[1][0].shape== paddle.shape[[4, 4]]
-    assert result[1][0]._nnz() == 10
+    assert result[1][0].shape== (4, 4)
+    assert result[1][0].nnz() == 10
     assert conv._alpha is None
 
     if paddle_geometric.typing.WITH_PADDLE_SPARSE:

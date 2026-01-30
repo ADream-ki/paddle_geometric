@@ -2,10 +2,11 @@ from typing import Optional, Tuple
 
 import paddle
 from paddle import Tensor
-from paddle.nn import Layer, Linear
+
 from paddle_geometric.nn.conv import MessagePassing
+from paddle_geometric.nn.dense.linear import Linear
 from paddle_geometric.typing import Adj, SparseTensor
-from paddle_geometric.utils import spmm
+from paddle_geometric.utils import is_paddle_sparse_tensor, spmm, to_edge_index
 
 
 class PANConv(MessagePassing):
@@ -31,7 +32,7 @@ class PANConv(MessagePassing):
         out_channels (int): Size of each output sample.
         filter_size (int): The filter size :math:`L`.
         **kwargs (optional): Additional arguments of
-            :class:`paddle_geometric.nn.conv.MessagePassing`.
+            :class:`torch_geometric.nn.conv.MessagePassing`.
 
     Shapes:
         - **input:**
@@ -50,7 +51,7 @@ class PANConv(MessagePassing):
         self.filter_size = filter_size
 
         self.lin = Linear(in_channels, out_channels)
-        self.weight = self.create_parameter(shape=[filter_size + 1], default_initializer=paddle.nn.initializer.Constant(0.5))
+        self.weight = self.create_parameter(shape=[filter_size + 1])
 
         self.reset_parameters()
 
@@ -67,8 +68,16 @@ class PANConv(MessagePassing):
 
         adj_t: Optional[SparseTensor] = None
         if isinstance(edge_index, Tensor):
-            adj_t = SparseTensor(row=edge_index[1], col=edge_index[0],
-                                 sparse_sizes=(x.shape[0], x.shape[0]))
+            if is_paddle_sparse_tensor(edge_index):
+                indices, values = to_edge_index(edge_index)
+                adj_t = SparseTensor.from_edge_index(
+                    indices,
+                    values,
+                    sparse_sizes=(x.shape[0], x.shape[0]),
+                )
+            else:
+                adj_t = SparseTensor(row=edge_index[1], col=edge_index[0],
+                                     sparse_sizes=(x.shape[0], x.shape[0]))
         elif isinstance(edge_index, SparseTensor):
             adj_t = edge_index.set_value(None)
 
@@ -90,12 +99,12 @@ class PANConv(MessagePassing):
         return spmm(adj_t, x, reduce=self.aggr)
 
     def panentropy(self, adj_t: SparseTensor,
-                   dtype: Optional[str] = None) -> SparseTensor:
+                   dtype: Optional[paddle.dtype] = None) -> SparseTensor:
 
         if not adj_t.has_value():
             adj_t = adj_t.fill_value(1.0)
 
-        tmp = SparseTensor.eye(adj_t.shape[0], adj_t.shape[1], has_value=True,
+        tmp = SparseTensor.eye(adj_t.size(0), adj_t.size(1), has_value=True,
                                dtype=dtype, device=adj_t.place)
         tmp = tmp.mul_nnz(self.weight[0])
 

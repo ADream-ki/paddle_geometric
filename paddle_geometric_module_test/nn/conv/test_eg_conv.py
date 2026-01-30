@@ -61,7 +61,7 @@ def test_eg_conv(aggregators, add_self_loops):
 
 
 def test_eg_conv_with_sparse_input_feature():
-    x = paddle.randn(shape=[4, 16]).to_sparse_coo()
+    x = paddle.randn(shape=[4, 16]).to_sparse_coo(2)
     edge_index = paddle.to_tensor([[0, 0, 0, 1, 2, 3], [1, 2, 3, 0, 0, 0]])
 
     conv = EGConv(16, 32)

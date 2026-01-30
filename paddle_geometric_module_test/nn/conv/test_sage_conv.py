@@ -130,7 +130,7 @@ def test_multi_aggr_sage_conv(aggr_kwargs):
 def test_compile_multi_aggr_sage_conv(device):
     import paddle._dynamo as dynamo
 
-    x = paddle.randn(shape=[4, 8, place=device])
+    x = paddle.randn(shape=[4, 8], place=device)
     edge_index = paddle.to_tensor([[0, 1, 2, 3], [0, 0, 1, 1]], place=device)
 
     conv = SAGEConv(

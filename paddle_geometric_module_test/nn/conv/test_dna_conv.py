@@ -11,7 +11,7 @@ from paddle_geometric.utils import to_paddle_csc_tensor
 @pytest.mark.parametrize('channels', [32])
 @pytest.mark.parametrize('num_layers', [3])
 def test_dna_conv(channels, num_layers):
-    x = paddle.randn(shape=[(4, num_layers, channels]))
+    x = paddle.randn(shape=[4, num_layers, channels])
     edge_index = paddle.to_tensor([[0, 0, 0, 1, 2, 3], [1, 2, 3, 0, 0, 0]])
 
     conv = DNAConv(channels, heads=4, groups=8, dropout=0.0)
@@ -46,7 +46,7 @@ def test_dna_conv(channels, num_layers):
 @pytest.mark.parametrize('channels', [32])
 @pytest.mark.parametrize('num_layers', [3])
 def test_dna_conv_sparse_tensor(channels, num_layers):
-    x = paddle.randn(shape=[(4, num_layers, channels]))
+    x = paddle.randn(shape=[4, num_layers, channels])
     edge_index = paddle.to_tensor([[0, 0, 0, 1, 2, 3], [1, 2, 3, 0, 0, 0]])
     value = paddle.rand(edge_index.shape[1])
     adj1 = to_paddle_csc_tensor(edge_index, size=(4, 4))

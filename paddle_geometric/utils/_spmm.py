@@ -58,6 +58,12 @@ def spmm(
             "processing. Consider converting your sparse tensor to CSR format "
             f"beforehand to avoid repeated conversion (got '{src.layout}')")
         src = src.to_sparse_csr()
+    if hasattr(src, 'is_sparse_csc') and src.is_sparse_csc():
+        warnings.warn(
+            "Converting sparse tensor to CSR format for more efficient "
+            "processing. Consider converting your sparse tensor to CSR format "
+            f"beforehand to avoid repeated conversion (got '{src.layout}')")
+        src = src.to_sparse_csr()
 
     if reduce == "sum":
         return paddle.sparse.matmul(x=src, y=other)

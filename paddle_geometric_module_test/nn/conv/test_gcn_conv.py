@@ -79,10 +79,10 @@ def test_gcn_conv_with_decomposed_layers():
 
 
 def test_gcn_conv_with_sparse_input_feature():
-    x = paddle.sparse_coo_tensor(
+    x = paddle.sparse.sparse_coo_tensor(
         indices=paddle.to_tensor([[0, 0], [0, 1]]),
         values=paddle.to_tensor([1., 1.]),
-        size=paddle.shape[[4, 16]],
+        shape=[4, 16],
     )
     edge_index = paddle.to_tensor([[0, 0, 0, 1, 2, 3], [1, 2, 3, 0, 0, 0]])
 
@@ -116,12 +116,12 @@ def test_gcn_conv_flow():
 
 
 @pytest.mark.parametrize('requires_grad', [False, True])
-@pytest.mark.parametrize('layout', [paddle.sparse_coo, paddle.sparse_csr])
+@pytest.mark.parametrize('layout', ['coo', 'csr'])
 def test_gcn_norm_gradient(requires_grad, layout):
     edge_index = paddle.to_tensor([[0, 0, 0, 1, 2, 3], [1, 2, 3, 0, 0, 0]])
     edge_weight = paddle.ones(edge_index.shape[1], requires_grad=requires_grad)
     adj = to_paddle_coo_tensor(edge_index, edge_weight)
-    if layout == paddle.sparse_csr:
+    if layout == 'csr':
         adj = adj.to_sparse_csr()
 
     assert adj.requires_grad == gcn_norm(adj)[0].requires_grad

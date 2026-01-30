@@ -150,14 +150,17 @@ class PNAConv(MessagePassing):
         self.lin.reset_parameters()
 
     def forward(self, x: Tensor, edge_index: Adj,
-                edge_attr: Optional[Tensor] = None) -> Tensor:
+                edge_attr: OptTensor = None) -> Tensor:
 
         if self.divide_input:
             x = x.reshape([-1, self.towers, self.F_in])
         else:
-            x = x.reshape([-1, 1, self.F_in]).expand([-1, self.towers, -1])
+            x = paddle.tile(
+                x.reshape([-1, 1, self.F_in]),
+                repeat_times=[1, self.towers, 1],
+            )
 
-        # propagate_type: (x: Tensor, edge_attr: Optional[Tensor])
+        # propagate_type: (x: Tensor, edge_attr: OptTensor)
         out = self.propagate(edge_index, x=x, edge_attr=edge_attr)
 
         out = paddle.concat([x, out], axis=-1)
@@ -167,13 +170,13 @@ class PNAConv(MessagePassing):
         return self.lin(out)
 
     def message(self, x_i: Tensor, x_j: Tensor,
-                edge_attr: Optional[Tensor]) -> Tensor:
+                edge_attr: OptTensor) -> Tensor:
 
         h: Tensor = x_i  # Dummy.
         if edge_attr is not None:
             edge_attr = self.edge_encoder(edge_attr)
             edge_attr = edge_attr.reshape([-1, 1, self.F_in])
-            edge_attr = edge_attr.expand([-1, self.towers, -1])
+            edge_attr = paddle.tile(edge_attr, repeat_times=[1, self.towers, 1])
             h = paddle.concat([x_i, x_j, edge_attr], axis=-1)
         else:
             h = paddle.concat([x_i, x_j], axis=-1)

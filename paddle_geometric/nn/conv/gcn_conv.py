@@ -55,11 +55,7 @@ def gcn_norm(  # noqa: F811
         return adj_t
 
     if is_paddle_sparse_tensor(edge_index):
-        assert edge_index.size(0) == edge_index.size(1)
-
-        if edge_index.layout == paddle.sparse_csc:
-            raise NotImplementedError("Sparse CSC matrices are not yet "
-                                      "supported in 'gcn_norm'")
+        assert edge_index.shape[0] == edge_index.shape[1]
 
         adj_t = edge_index
         if add_self_loops:
@@ -193,9 +189,9 @@ class GCNConv(MessagePassing):
                           weight_initializer='glorot')
 
         if bias:
-            self.bias = paddle.create_parameter(shape=[in_channels], dtype='float32')
+            self.bias = self.create_parameter([out_channels])
         else:
-            self.register_parameter('bias', None)
+            self.bias = None
 
         self.reset_parameters()
 
@@ -235,7 +231,7 @@ class GCNConv(MessagePassing):
                 cache = self._cached_adj_t
                 if cache is None:
                     edge_index = gcn_norm(  # yapf: disable
-                        edge_index, edge_weight, x.size(self.node_dim),
+                        edge_index, edge_weight, x.shape[self.node_dim],
                         self.improved, self.add_self_loops, self.flow, x.dtype)
                     if self.cached:
                         self._cached_adj_t = edge_index

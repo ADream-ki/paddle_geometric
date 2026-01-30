@@ -2,13 +2,15 @@ from typing import List, Optional, Tuple
 
 import paddle
 from paddle import Tensor
-from paddle.nn import Layer, Linear
+
 from paddle_geometric.nn.conv import MessagePassing
 from paddle_geometric.nn.conv.gcn_conv import gcn_norm
+from paddle_geometric.nn.dense.linear import Linear
 from paddle_geometric.nn.inits import zeros
-
-from paddle_geometric.typing import Adj, OptTensor, SparseTensor
+from paddle_geometric.typing import Adj, OptTensor, SparseTensor, paddle_sparse
 from paddle_geometric.utils import add_remaining_self_loops, scatter, spmm
+from paddle_geometric.utils.sparse import set_sparse_value
+from paddle_geometric.utils import is_paddle_sparse_tensor
 
 
 class EGConv(MessagePassing):
@@ -32,6 +34,11 @@ class EGConv(MessagePassing):
     sensible alternative to :class:`~paddle_geometric.nn.conv.GCNConv`,
     :class:`~paddle_geometric.nn.conv.SAGEConv` or
     :class:`~paddle_geometric.nn.conv.GINConv`.
+
+    .. note::
+        For an example of using :obj:`EGConv`, see `examples/egc.py
+        <https://github.com/pyg-team/pytorch_geometric/blob/master/
+        examples/egc.py>`_.
 
     Args:
         in_channels (int): Size of each input sample, or :obj:`-1` to derive
@@ -66,6 +73,9 @@ class EGConv(MessagePassing):
         - **output:** node features :math:`(|\mathcal{V}|, F_{out})`
     """
 
+    _cached_edge_index: Optional[Tuple[Tensor, OptTensor]]
+    _cached_adj_t: Optional[SparseTensor]
+
     def __init__(
         self,
         in_channels: int,
@@ -99,7 +109,7 @@ class EGConv(MessagePassing):
 
         self.bases_lin = Linear(in_channels,
                                 (out_channels // num_heads) * num_bases,
-                                bias_attr=False)
+                                bias=False, weight_initializer='glorot')
         self.comb_lin = Linear(in_channels,
                                num_heads * num_bases * len(aggregators))
 
@@ -111,20 +121,58 @@ class EGConv(MessagePassing):
         self.reset_parameters()
 
     def reset_parameters(self):
+        super().reset_parameters()
         self.bases_lin.reset_parameters()
         self.comb_lin.reset_parameters()
-        if self.bias is not None:
-            zeros(self.bias)
+        zeros(self.bias)
+        self._cached_adj_t = None
+        self._cached_edge_index = None
 
     def forward(self, x: Tensor, edge_index: Adj) -> Tensor:
         symnorm_weight: OptTensor = None
         if "symnorm" in self.aggregators:
-            edge_index, symnorm_weight = gcn_norm(
-                edge_index, None, num_nodes=x.shape[0],
-                add_self_loops=self.add_self_loops, dtype=x.dtype)
+            if isinstance(edge_index, Tensor):
+                cache = self._cached_edge_index
+                if cache is None:
+                    edge_index, symnorm_weight = gcn_norm(
+                        edge_index, None, num_nodes=x.shape[self.node_dim],
+                        improved=False, add_self_loops=self.add_self_loops,
+                        flow=self.flow, dtype=x.dtype)
+                    if self.cached:
+                        self._cached_edge_index = (edge_index, symnorm_weight)
+                else:
+                    edge_index, symnorm_weight = cache
+
+            elif isinstance(edge_index, SparseTensor):
+                cache = self._cached_adj_t
+                if cache is None:
+                    edge_index = gcn_norm(
+                        edge_index, None, num_nodes=x.shape[self.node_dim],
+                        improved=False, add_self_loops=self.add_self_loops,
+                        flow=self.flow, dtype=x.dtype)
+                    if self.cached:
+                        self._cached_adj_t = edge_index
+                else:
+                    edge_index = cache
 
         elif self.add_self_loops:
-            edge_index, _ = add_remaining_self_loops(edge_index)
+            if isinstance(edge_index, Tensor):
+                cache = self._cached_edge_index
+                if self.cached and cache is not None:
+                    edge_index = cache[0]
+                else:
+                    edge_index, _ = add_remaining_self_loops(edge_index)
+                    if self.cached:
+                        self._cached_edge_index = (edge_index, None)
+
+            elif isinstance(edge_index, SparseTensor):
+                cache = self._cached_adj_t
+                if self.cached and cache is not None:
+                    edge_index = cache
+                else:
+                    edge_index = paddle_sparse.fill_diag(edge_index, 1.0)
+                    if self.cached:
+                        self._cached_adj_t = edge_index
 
         bases = self.bases_lin(x)
         weightings = self.comb_lin(x)
@@ -153,15 +201,20 @@ class EGConv(MessagePassing):
         outs = []
         for aggr in self.aggregators:
             if aggr == 'symnorm':
-                out = scatter(inputs * symnorm_weight, index, axis=0, dim_size=dim_size, reduce='sum')
+                assert symnorm_weight is not None
+                out = scatter(inputs * symnorm_weight.reshape([-1, 1]), index,
+                              dim=0, dim_size=dim_size, reduce='sum')
             elif aggr == 'var' or aggr == 'std':
-                mean = scatter(inputs, index, axis=0, dim_size=dim_size, reduce='mean')
-                mean_squares = scatter(inputs * inputs, index, axis=0, dim_size=dim_size, reduce='mean')
+                mean = scatter(inputs, index, dim=0, dim_size=dim_size,
+                               reduce='mean')
+                mean_squares = scatter(inputs * inputs, index, dim=0,
+                                       dim_size=dim_size, reduce='mean')
                 out = mean_squares - mean * mean
                 if aggr == 'std':
                     out = paddle.sqrt(out.clip(min=1e-5))
             else:
-                out = scatter(inputs, index, axis=0, dim_size=dim_size, reduce=aggr)
+                out = scatter(inputs, index, dim=0, dim_size=dim_size,
+                              reduce=aggr)
 
             outs.append(out)
 
@@ -170,7 +223,17 @@ class EGConv(MessagePassing):
     def message_and_aggregate(self, adj_t: Adj, x: Tensor) -> Tensor:
         adj_t_2 = adj_t
         if len(self.aggregators) > 1 and 'symnorm' in self.aggregators:
-            adj_t_2 = adj_t.set_value(None) if isinstance(adj_t, SparseTensor) else adj_t.clone().fill_diagonal(1.0)
+            if isinstance(adj_t, SparseTensor):
+                adj_t_2 = adj_t.set_value(None)
+            elif is_paddle_sparse_tensor(adj_t):
+                values = adj_t.values()
+                if values is not None:
+                    adj_t_2 = set_sparse_value(adj_t,
+                                               paddle.ones_like(values))
+            else:
+                adj_t_2 = adj_t.clone()
+                if hasattr(adj_t_2, 'values'):
+                    adj_t_2.values().fill_(1.0)
 
         outs = []
         for aggr in self.aggregators:

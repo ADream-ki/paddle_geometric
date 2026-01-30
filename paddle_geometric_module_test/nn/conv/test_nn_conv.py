@@ -12,8 +12,8 @@ from paddle_geometric.utils import to_paddle_coo_tensor
 
 @withCUDA
 def test_nn_conv(device):
-    x1 = paddle.randn(shape=[4, 8, place=device])
-    x2 = paddle.randn(shape=[2, 16, place=device])
+    x1 = paddle.randn(shape=[4, 8], place=device)
+    x2 = paddle.randn(shape=[2, 16], place=device)
     edge_index = paddle.to_tensor([[0, 1, 2, 3], [0, 0, 1, 1]], place=device)
     value = paddle.rand(edge_index.shape[1], 3, place=device)
     adj1 = to_paddle_coo_tensor(edge_index, value, size=(4, 4))

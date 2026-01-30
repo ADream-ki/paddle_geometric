@@ -4,7 +4,14 @@ import paddle
 from paddle import Tensor
 from paddle_geometric.nn.conv import MessagePassing
 from paddle_geometric.nn.inits import reset
-from paddle_geometric.typing import Adj, OptTensor, PairOptTensor, PairTensor, SparseTensor
+from paddle_geometric.typing import (
+    Adj,
+    OptTensor,
+    PairOptTensor,
+    PairTensor,
+    SparseTensor,
+    paddle_sparse,
+)
 from paddle_geometric.utils import add_self_loops, remove_self_loops
 
 

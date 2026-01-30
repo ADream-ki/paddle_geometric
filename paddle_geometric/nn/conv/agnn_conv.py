@@ -5,7 +5,7 @@ import paddle.nn.functional as F
 from paddle import Tensor
 from paddle.nn import Layer
 from paddle_geometric.nn.conv import MessagePassing
-from paddle_geometric.typing import Adj, OptTensor, SparseTensor
+from paddle_geometric.typing import Adj, OptTensor, SparseTensor, paddle_sparse
 from paddle_geometric.utils import add_self_loops, remove_self_loops, softmax
 
 
@@ -66,7 +66,7 @@ class AGNNConv(MessagePassing):
                 edge_index, _ = remove_self_loops(edge_index)
                 edge_index, _ = add_self_loops(edge_index, num_nodes=x.shape[self.node_dim])
             elif isinstance(edge_index, SparseTensor):
-                edge_index = edge_index.set_diag()
+                edge_index = paddle_sparse.set_diag(edge_index)
 
         x_norm = F.normalize(x, p=2., axis=-1)
 
@@ -78,4 +78,4 @@ class AGNNConv(MessagePassing):
                 size_i: Optional[int]) -> Tensor:
         alpha = self.beta * (x_norm_i * x_norm_j).sum(axis=-1)
         alpha = softmax(alpha, index, ptr, size_i)
-        return x_j * alpha.unsqueeze(-1)
+        return x_j * alpha.reshape([-1, 1])

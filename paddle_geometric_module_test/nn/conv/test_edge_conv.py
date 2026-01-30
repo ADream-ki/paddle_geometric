@@ -20,9 +20,9 @@ def test_edge_conv_conv():
     conv = EdgeConv(nn)
     assert str(conv) == (
         'EdgeConv(nn=Sequential(\n'
-        '  (0): Linear(in_features=32, out_features=16, bias=True)\n'
+        '  (0): Linear(in_features=32, out_features=16, dtype=float32)\n'
         '  (1): ReLU()\n'
-        '  (2): Linear(in_features=16, out_features=32, bias=True)\n'
+        '  (2): Linear(in_features=16, out_features=32, dtype=float32)\n'
         '))')
     out = conv(x1, edge_index)
     assert out.shape== (4, 32)
@@ -73,9 +73,9 @@ def test_dynamic_edge_conv():
     conv = DynamicEdgeConv(nn, k=2)
     assert str(conv) == (
         'DynamicEdgeConv(nn=Sequential(\n'
-        '  (0): Linear(in_features=32, out_features=16, bias=True)\n'
+        '  (0): Linear(in_features=32, out_features=16, dtype=float32)\n'
         '  (1): ReLU()\n'
-        '  (2): Linear(in_features=16, out_features=32, bias=True)\n'
+        '  (2): Linear(in_features=16, out_features=32, dtype=float32)\n'
         '), k=2)')
     out11 = conv(x1)
     assert out11.shape== (8, 32)

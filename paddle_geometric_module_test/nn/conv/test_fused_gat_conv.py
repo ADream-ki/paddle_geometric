@@ -26,7 +26,7 @@ def test_to_graph_format() -> None:
 def test_fused_gat_conv() -> None:
     device = paddle.place('cuda')
 
-    x = paddle.randn(shape=[4, 8, place=device])
+    x = paddle.randn(shape=[4, 8], place=device)
     edge_index = paddle.to_tensor([[0, 1, 2, 3], [0, 0, 1, 1]], place=device)
 
     csr, csc, perm = FusedGATConv.to_graph_format(edge_index, size=(4, 4))

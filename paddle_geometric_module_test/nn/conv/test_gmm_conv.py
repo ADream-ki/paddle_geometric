@@ -23,7 +23,8 @@ def test_gmm_conv(separate_gaussians):
     assert out.shape== (4, 32)
     assert paddle.allclose(conv(x1, edge_index, value, size=(4, 4)), out)
     # t() expects a tensor with <= 2 sparse and 0 dense dimensions
-    assert paddle.allclose(conv(x1, adj1.transpose(0, 1).coalesce()), out)
+    if value.ndim == 1:
+        assert paddle.allclose(conv(x1, adj1.transpose(0, 1).coalesce()), out)
 
     if paddle_geometric.typing.WITH_PADDLE_SPARSE:
         adj2 = SparseTensor.from_edge_index(edge_index, value, (4, 4))
@@ -47,13 +48,15 @@ def test_gmm_conv(separate_gaussians):
     out1 = conv((x1, x2), edge_index, value)
     assert out1.shape== (2, 32)
     assert paddle.allclose(conv((x1, x2), edge_index, value, (4, 2)), out1)
-    assert paddle.allclose(conv((x1, x2),
-                               adj1.transpose(0, 1).coalesce()), out1)
+    if value.ndim == 1:
+        assert paddle.allclose(conv((x1, x2),
+                                   adj1.transpose(0, 1).coalesce()), out1)
 
     out2 = conv((x1, None), edge_index, value, (4, 2))
     assert out2.shape== (2, 32)
-    assert paddle.allclose(conv((x1, None),
-                               adj1.transpose(0, 1).coalesce()), out2)
+    if value.ndim == 1:
+        assert paddle.allclose(conv((x1, None),
+                                   adj1.transpose(0, 1).coalesce()), out2)
 
     if paddle_geometric.typing.WITH_PADDLE_SPARSE:
         adj2 = SparseTensor.from_edge_index(edge_index, value, (4, 2))

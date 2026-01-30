@@ -827,7 +827,24 @@ class EdgeIndex(BaseTensorSubclass):
                 If not specified, non-zero elements will be assigned a value of
                 :obj:`1.0`. (default: :obj:`None`)
         """
-        raise NotImplementedError("Paddle don't support this method yet")
+        if (not hasattr(paddle, 'sparse_csc')
+                or not hasattr(paddle.sparse, 'sparse_csc_tensor')):
+            raise NotImplementedError("Paddle don't support this method yet")
+
+        (colptr, row), perm = self.get_csc()
+        if value is not None and perm is not None:
+            value = value[perm]
+        elif value is None:
+            value = self._get_value()
+
+        return paddle.sparse.sparse_csc_tensor(
+            ccol_indices=colptr,
+            row_indices=row,
+            values=value,
+            shape=self.get_sparse_size(),
+            place=self.device,
+            stop_gradient=value.stop_gradient,
+        )
 
     def to_sparse(
         self,
@@ -851,6 +868,9 @@ class EdgeIndex(BaseTensorSubclass):
         elif layout == 'csr':
             return self.to_sparse_csr(value)
         elif layout == 'csc':
+            if (hasattr(paddle, 'sparse_csc')
+                    and hasattr(paddle.sparse, 'sparse_csc_tensor')):
+                return self.to_sparse_csc(value)
             return self.to_sparse_csr(value)
         else:
             raise ValueError(f"Unknown layout {layout}.")

@@ -10,7 +10,7 @@ def test_cheb_conv():
     edge_index = paddle.to_tensor([[0, 0, 0, 1, 2, 3], [1, 2, 3, 0, 0, 0]])
     num_nodes = edge_index.max().item() + 1
     edge_weight = paddle.rand(edge_index.shape[1])
-    x = paddle.randn(shape=[(num_nodes, in_channels]))
+    x = paddle.randn(shape=[num_nodes, in_channels])
 
     conv = ChebConv(in_channels, out_channels, K=3)
     assert str(conv) == 'ChebConv(16, 32, K=3, normalization=sym)'
@@ -33,7 +33,7 @@ def test_cheb_conv():
     edge_index = paddle.to_tensor([[0, 1, 2, 3], [1, 0, 3, 2]])
     num_nodes = edge_index.max().item() + 1
     edge_weight = paddle.rand(edge_index.shape[1])
-    x = paddle.randn(shape=[(num_nodes, in_channels]))
+    x = paddle.randn(shape=[num_nodes, in_channels])
     lambda_max = paddle.to_tensor([2.0, 3.0])
 
     out4 = conv(x, edge_index, edge_weight, batch)

@@ -185,8 +185,8 @@ def test_compile_hetero_conv_graph_breaks(device):
     import paddle._dynamo as dynamo
 
     data = HeteroData()
-    data['a'].x = paddle.randn(shape=[50, 16, place=device])
-    data['b'].x = paddle.randn(shape=[50, 16, place=device])
+    data['a'].x = paddle.randn(shape=[50, 16], place=device)
+    data['b'].x = paddle.randn(shape=[50, 16], place=device)
     edge_index = get_random_edge_index(50, 50, 100, place=device)
     data['a', 'to', 'b'].edge_index = edge_index
     data['b', 'to', 'a'].edge_index = edge_index.flip([0])

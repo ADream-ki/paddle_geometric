@@ -123,6 +123,8 @@ def is_paddle_sparse_tensor(src: Any) -> bool:
             return True
         if src.is_sparse_csr():
             return True
+        if hasattr(src, 'is_sparse_csc') and src.is_sparse_csc():
+            return True
     return False
 
 
@@ -310,7 +312,45 @@ def to_paddle_csc_tensor(
                size=(4, 4), nnz=6, layout=paddle.sparse_csc)
 
     """
-    raise NotImplementedError("PaddlePaddle don't not support csc")
+    if (not hasattr(paddle, 'sparse_csc')
+            or not hasattr(paddle.sparse, 'sparse_csc_tensor')):
+        from paddle_geometric.typing import MockPaddleCSCTensor
+        return MockPaddleCSCTensor(edge_index, edge_attr, size)
+
+    if size is None:
+        size = int(edge_index.max()) + 1
+
+    if isinstance(size, (tuple, list)):
+        num_src_nodes, num_dst_nodes = size
+        if num_src_nodes is None:
+            num_src_nodes = int(edge_index[0].max()) + 1
+        if num_dst_nodes is None:
+            num_dst_nodes = int(edge_index[1].max()) + 1
+        size = (num_src_nodes, num_dst_nodes)
+    else:
+        size = (size, size)
+
+    if not is_coalesced:
+        edge_index, edge_attr = coalesce(edge_index, edge_attr, max(size),
+                                         sort_by_row=False)
+
+    if edge_attr is None:
+        # Expanded tensors are not yet supported in all Pypaddle code paths :(
+        # edge_attr = paddle.ones(1, device=edge_index.device)
+        # edge_attr = edge_attr.expand(edge_index.size(1))
+        edge_attr = paddle.ones([
+            edge_index.shape[1],
+        ], device=edge_index.place)
+
+    adj = paddle.sparse.sparse_csc_tensor(
+        ccol_indices=index2ptr(edge_index[1], size[1]),
+        row_indices=edge_index[0],
+        values=edge_attr,
+        shape=tuple(size) + tuple(edge_attr.shape)[1:],
+        place=edge_index.place,
+    )
+
+    return adj
 
 
 def to_paddle_sparse_tensor(
@@ -385,10 +425,10 @@ def to_edge_index(adj: Union[Tensor, SparseTensor]) -> Tuple[Tensor, Tensor]:
         row = ptr2index(adj.crows().detach())
         col = adj.cols().detach()
         return paddle.stack([row, col], axis=0).long(), adj.values()
-    # if adj.is_sparse_csc():
-    #     col = ptr2index(adj.ccol_indices().detach())
-    #     row = adj.row_indices().detach()
-    #     return paddle.stack([row, col], axis=0).long(), adj.values()
+    if hasattr(adj, 'is_sparse_csc') and adj.is_sparse_csc():
+        col = ptr2index(adj.ccol_indices().detach())
+        row = adj.row_indices().detach()
+        return paddle.stack([row, col], axis=0).long(), adj.values()
     raise ValueError(f"Unexpected sparse tensor layout (got '{adj}')")
 
 
@@ -434,14 +474,14 @@ def set_sparse_value(adj: Tensor, value: Tensor) -> Tensor:
             shape=size,
             place=value.place,
         )
-    # if adj.is_sparse_csc():
-    #     return paddle.sparse.sparse_csc_tensor(
-    #         ccol_indices=adj.ccol_indices(),
-    #         row_indices=adj.row_indices(),
-    #         values=value,
-    #         shape=size,
-    #         place=value.place,
-    #     )
+    if hasattr(adj, 'is_sparse_csc') and adj.is_sparse_csc():
+        return paddle.sparse.sparse_csc_tensor(
+            ccol_indices=adj.ccol_indices(),
+            row_indices=adj.row_indices(),
+            values=value,
+            shape=size,
+            place=value.place,
+        )
 
     raise ValueError(f"Unexpected sparse tensor layout (got '{adj.layout}')")
 

@@ -188,8 +188,8 @@ def test_gat_conv_with_edge_attr():
 
 @withDevice
 def test_gat_conv_empty_edge_index(device):
-    x = paddle.randn(shape=[0, 8, place=device])
-    edge_index = paddle.empty(2, 0, dtype=paddle.int64, place=device)
+    x = paddle.randn(shape=[0, 8]).to(device)
+    edge_index = paddle.empty([2, 0], dtype=paddle.int64).to(device)
 
     conv = GATConv(8, 32, heads=2).to(device)
     out = conv(x, edge_index)

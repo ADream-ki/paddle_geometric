@@ -28,7 +28,7 @@ def test_rgat_conv(mod, attention_mechanism, attention_mode, concat, edge_dim):
     x = paddle.randn(shape=[4, 8])
     edge_index = paddle.to_tensor([[0, 1, 2, 3], [0, 0, 1, 1]])
     edge_type = paddle.to_tensor([0, 2, 1, 2])
-    edge_attr = paddle.randn(shape=[(4, edge_dim])) if edge_dim else None
+    edge_attr = paddle.randn(shape=[4, edge_dim]) if edge_dim else None
 
     conv1 = RGATConv(  # `num_bases` is not None:
         in_channels=8,
@@ -101,7 +101,7 @@ def test_rgat_conv(mod, attention_mechanism, attention_mode, concat, edge_dim):
 def test_rgat_conv_jit():
     x = paddle.randn(shape=[4, 8])
     edge_index = paddle.to_tensor([[0, 1, 2, 3], [0, 0, 1, 1]])
-    edge_attr = paddle.randn(shape=[(edge_index.shape[1], 8]))
+    edge_attr = paddle.randn(shape=[edge_index.shape[1], 8])
     edge_type = paddle.to_tensor([0, 2, 1, 2])
     adj1 = to_paddle_coo_tensor(edge_index, edge_attr, size=(4, 4))
 

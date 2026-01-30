@@ -25,11 +25,11 @@ def test_ppf_conv():
     conv = PPFConv(local_nn, global_nn)
     assert str(conv) == (
         'PPFConv(local_nn=Sequential(\n'
-        '  (0): Linear(in_features=20, out_features=32, bias=True)\n'
+        '  (0): Linear(in_features=20, out_features=32, dtype=float32)\n'
         '  (1): ReLU()\n'
-        '  (2): Linear(in_features=32, out_features=32, bias=True)\n'
+        '  (2): Linear(in_features=32, out_features=32, dtype=float32)\n'
         '), global_nn=Sequential(\n'
-        '  (0): Linear(in_features=32, out_features=32, bias=True)\n'
+        '  (0): Linear(in_features=32, out_features=32, dtype=float32)\n'
         '))')
 
     out = conv(x1, pos1, n1, edge_index)

@@ -8,6 +8,7 @@ from paddle.nn import Dropout, Linear, Sequential
 
 from paddle_geometric.nn.attention import PerformerAttention
 from paddle_geometric.nn.conv import MessagePassing
+from paddle_geometric.nn.inits import reset
 from paddle_geometric.nn.resolver import (
     activation_resolver,
     normalization_resolver,
@@ -28,6 +29,13 @@ class GPSConv(paddle.nn.Layer):
        :class:`paddle_geometric.transforms`).
     2. A local message passing layer (MPNN) that operates on the input graph.
     3. A global attention layer that operates on the entire graph.
+
+    .. note::
+
+        For an example of using :class:`GPSConv`, see
+        `examples/graph_gps.py
+        <https://github.com/pyg-team/pytorch_geometric/blob/master/examples/
+        graph_gps.py>`_.
 
     Args:
         channels (int): Size of each input sample.
@@ -75,8 +83,9 @@ class GPSConv(paddle.nn.Layer):
         attn_kwargs = attn_kwargs or {}
         if attn_type == 'multihead':
             self.attn = paddle.nn.MultiHeadAttention(
-                embed_dim=channels,
-                num_heads=heads,
+                channels,
+                heads,
+                need_weights=False,
                 **attn_kwargs,
             )
         elif attn_type == 'performer':
@@ -110,11 +119,11 @@ class GPSConv(paddle.nn.Layer):
         r"""Resets all learnable parameters of the module."""
         if self.conv is not None:
             self.conv.reset_parameters()
-        if hasattr(self.attn, 'reset_parameters'):
+        if hasattr(self.attn, '_reset_parameters'):
+            self.attn._reset_parameters()
+        elif hasattr(self.attn, 'reset_parameters'):
             self.attn.reset_parameters()
-        for layer in self.mlp:
-            if hasattr(layer, 'reset_parameters'):
-                layer.reset_parameters()
+        reset(self.mlp)
         if self.norm1 is not None:
             self.norm1.reset_parameters()
         if self.norm2 is not None:
@@ -146,7 +155,8 @@ class GPSConv(paddle.nn.Layer):
         h, mask = to_dense_batch(x, batch)
 
         if isinstance(self.attn, paddle.nn.MultiHeadAttention):
-            h, _ = self.attn(h, h, h, attention_mask=(~mask).astype(paddle.get_default_dtype()))
+            attn_mask = mask.unsqueeze(1).unsqueeze(2)
+            h = self.attn(h, h, h, attn_mask=attn_mask)
         elif isinstance(self.attn, PerformerAttention):
             h = self.attn(h, mask=mask)
 

@@ -243,8 +243,8 @@ if __name__ == '__main__':
 
     num_nodes, num_edges = 30_000, 300_000
     x_dict = {
-        'paper': paddle.randn(shape=[num_nodes, 64, place=args.device]),
-        'author': paddle.randn(shape=[num_nodes, 64, place=args.device]),
+        'paper': paddle.randn(shape=[num_nodes, 64], place=args.device),
+        'author': paddle.randn(shape=[num_nodes, 64], place=args.device),
     }
     edge_index_dict = {
         ('paper', 'to', 'paper'):

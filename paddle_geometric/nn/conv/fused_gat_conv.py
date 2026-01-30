@@ -59,7 +59,8 @@ class FusedGATConv(GATConv):  # pragma: no cover
         col = edge_index[1]
 
         device = edge_index.place
-        perm = paddle.arange(edge_index.shape[1], dtype=paddle.int32, place=device)
+        perm = paddle.arange(edge_index.shape[1], dtype=paddle.int32,
+                             device=device)
         edge_index, perm = sort_edge_index(edge_index, perm, sort_by_row=False)
         row = edge_index[0]
         colptr = index2ptr(edge_index[1], size=size[1] if size else None)
@@ -93,7 +94,7 @@ class FusedGATConv(GATConv):  # pragma: no cover
         """
         H, C = self.heads, self.out_channels
 
-        assert x.dim() == 2, "Static graphs not supported in 'GATConv'"
+        assert x.ndim == 2, "Static graphs not supported in 'GATConv'"
         x = self.lin_src(x).reshape((-1, H, C))
 
         alpha_src = (x * self.att_src).sum(axis=-1)

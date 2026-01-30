@@ -15,7 +15,7 @@ confs = [(None, None), (2, None), (None, 2)]
 def test_rgcn_conv_equality(conf, device):
     num_bases, num_blocks = conf
 
-    x1 = paddle.randn(shape=[4, 4, place=device])
+    x1 = paddle.randn(shape=[4, 4], place=device)
     edge_index = paddle.to_tensor([
         [0, 1, 1, 2, 2, 3],
         [0, 0, 1, 0, 1, 1],
@@ -52,8 +52,8 @@ def test_rgcn_conv_equality(conf, device):
 def test_rgcn_conv_basic(cls, conf, device):
     num_bases, num_blocks = conf
 
-    x1 = paddle.randn(shape=[4, 4, place=device])
-    x2 = paddle.randn(shape=[2, 16, place=device])
+    x1 = paddle.randn(shape=[4, 4], place=device)
+    x2 = paddle.randn(shape=[2, 16], place=device)
     idx1 = paddle.arange(4, place=device)
     idx2 = paddle.arange(2, place=device)
     edge_index = paddle.to_tensor([

@@ -34,11 +34,13 @@ class EdgeConv(MessagePassing):
         self.reset_parameters()
 
     def reset_parameters(self):
+        super().reset_parameters()
         reset(self.nn)
 
     def forward(self, x: Union[Tensor, PairTensor], edge_index: Adj) -> Tensor:
         if isinstance(x, Tensor):
             x = (x, x)
+        # propagate_type: (x: PairTensor)
         return self.propagate(edge_index, x=x)
 
     def message(self, x_i: Tensor, x_j: Tensor) -> Tensor:
@@ -100,6 +102,7 @@ class DynamicEdgeConv(MessagePassing):
             b = (batch[0], batch[1])
 
         edge_index = knn(x[0], x[1], self.k, b[0], b[1]).flip([0])
+        # propagate_type: (x: PairTensor)
         return self.propagate(edge_index, x=x)
 
     def message(self, x_i: Tensor, x_j: Tensor) -> Tensor:
