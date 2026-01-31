@@ -34,7 +34,7 @@ def test_eg_conv(aggregators, add_self_loops):
     )
     assert str(conv) == f"EGConv(16, 32, aggregators={aggregators})"
     out = conv(x, edge_index)
-    assert out.shape== (4, 32)
+    assert tuple(out.shape)== (4, 32)
     assert paddle.allclose(conv(x, adj1.t()), out, atol=1e-2)
 
     if paddle_geometric.typing.WITH_PADDLE_SPARSE:
@@ -65,4 +65,4 @@ def test_eg_conv_with_sparse_input_feature():
     edge_index = paddle.to_tensor([[0, 0, 0, 1, 2, 3], [1, 2, 3, 0, 0, 0]])
 
     conv = EGConv(16, 32)
-    assert conv(x, edge_index).shape== (4, 32)
+    assert tuple(conv(x, edge_index).shape)== (4, 32)

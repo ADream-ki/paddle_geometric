@@ -12,7 +12,7 @@ from paddle_geometric.utils import to_paddle_coo_tensor, to_paddle_csc_tensor
 def test_gcn_conv():
     x = paddle.randn(shape=[4, 16])
     edge_index = paddle.to_tensor([[0, 0, 0, 1, 2, 3], [1, 2, 3, 0, 0, 0]])
-    value = paddle.rand(edge_index.shape[1])
+    value = paddle.rand([edge_index.shape[1]])
     adj1 = to_paddle_csc_tensor(edge_index, size=(4, 4))
     adj2 = to_paddle_csc_tensor(edge_index, value, size=(4, 4))
 
@@ -20,11 +20,11 @@ def test_gcn_conv():
     assert str(conv) == 'GCNConv(16, 32)'
 
     out1 = conv(x, edge_index)
-    assert out1.shape== (4, 32)
+    assert tuple(out1.shape)== (4, 32)
     assert paddle.allclose(conv(x, adj1.t()), out1, atol=1e-6)
 
     out2 = conv(x, edge_index, value)
-    assert out2.shape== (4, 32)
+    assert tuple(out2.shape)== (4, 32)
     assert paddle.allclose(conv(x, adj2.t()), out2, atol=1e-6)
 
     if paddle_geometric.typing.WITH_PADDLE_SPARSE:
@@ -59,7 +59,7 @@ def test_gcn_conv_with_decomposed_layers():
     edge_index = paddle.to_tensor([[0, 0, 0, 1, 2, 3], [1, 2, 3, 0, 0, 0]])
 
     def hook(module, inputs):
-        assert inputs[0]['x_j'].shape== (10, 32 // module.decomposed_layers)
+        assert tuple(inputs[0]['x_j'].shape)== (10, 32 // module.decomposed_layers)
 
     conv = GCNConv(16, 32)
     conv.register_message_forward_pre_hook(hook)
@@ -87,7 +87,7 @@ def test_gcn_conv_with_sparse_input_feature():
     edge_index = paddle.to_tensor([[0, 0, 0, 1, 2, 3], [1, 2, 3, 0, 0, 0]])
 
     conv = GCNConv(16, 32)
-    assert conv(x, edge_index).shape== (4, 32)
+    assert tuple(conv(x, edge_index).shape)== (4, 32)
 
 
 def test_static_gcn_conv():
@@ -96,7 +96,7 @@ def test_static_gcn_conv():
 
     conv = GCNConv(16, 32)
     out = conv(x, edge_index)
-    assert out.shape== (3, 4, 32)
+    assert tuple(out.shape)== (3, 4, 32)
 
 
 def test_gcn_conv_error():

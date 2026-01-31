@@ -337,27 +337,27 @@ class MessagePassing(paddle.nn.Layer):
         return self._index_select_safe(src, index)
 
     def _index_select_safe(self, src: Tensor, index: Tensor) -> Tensor:
-        try:
-            return paddle.index_select(src, index, axis=self.node_dim)
-        except (IndexError, RuntimeError) as e:
-            if index.numel() > 0 and index.min() < 0:
+        if index.numel() > 0:
+            min_index = int(index.min().item())
+            if min_index < 0:
                 raise IndexError(
                     f"Found negative indices in 'edge_index' (got "
-                    f"{index.min().item()}). Please ensure that all "
+                    f"{min_index}). Please ensure that all "
                     f"indices in 'edge_index' point to valid indices "
                     f"in the interval [0, {src.shape[self.node_dim]}) in "
                     f"your node feature matrix and try again.")
 
-            if (index.numel() > 0 and index.max() >= src.shape[self.node_dim]):
+            max_index = int(index.max().item())
+            if max_index >= src.shape[self.node_dim]:
                 raise IndexError(
                     f"Found indices in 'edge_index' that are larger "
                     f"than {src.shape[self.node_dim] - 1} (got "
-                    f"{index.max().item()}). Please ensure that all "
+                    f"{max_index}). Please ensure that all "
                     f"indices in 'edge_index' point to valid indices "
                     f"in the interval [0, {src.shape[self.node_dim]}) in "
                     f"your node feature matrix and try again.")
 
-            raise e
+        return paddle.index_select(src, index, axis=self.node_dim)
 
     def _lift(
         self,

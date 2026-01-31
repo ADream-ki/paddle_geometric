@@ -8,6 +8,24 @@ from paddle_geometric.typing import Adj, SparseTensor
 from paddle_geometric.utils import is_paddle_sparse_tensor
 
 
+def _dense_from_sparse(src: Adj) -> Tensor:
+    if hasattr(src, 'to_dense'):
+        return src.to_dense()
+    if isinstance(src, SparseTensor):
+        csr = src.to_paddle_sparse_csr_tensor()
+        return csr.to_dense()
+    raise NotImplementedError("Dense fallback is not available for this type")
+
+
+def _spmm_dense_fallback(src: Adj, other: Tensor, reduce: str) -> Tensor:
+    dense = _dense_from_sparse(src).astype(other.dtype)
+    out = paddle.matmul(dense, other)
+    if reduce == "mean":
+        deg = dense.sum(axis=1, keepdim=True)
+        out = out / deg.clip(min=1)
+    return out
+
+
 def spmm(
     src: Adj,
     other: Tensor,
@@ -41,9 +59,16 @@ def spmm(
         if (other.dim() == 2 and not src.is_cuda()
                 and not src.requires_grad()):
             csr = src.to_paddle_sparse_csr_tensor().to(other.dtype)
-            return paddle.sparse.matmul(csr, other)
+            try:
+                return paddle.sparse.matmul(csr, other)
+            except Exception:
+                return _spmm_dense_fallback(csr, other, reduce)
         # return paddle_sparse.matmul(src, other, reduce)
-        raise NotImplementedError()
+        try:
+            csr = src.to_paddle_sparse_csr_tensor().to(other.dtype)
+            return paddle.sparse.matmul(csr, other)
+        except Exception:
+            return _spmm_dense_fallback(csr, other, reduce)
     if not is_paddle_sparse_tensor(src):
         raise ValueError(
             "'src' must be a 'torch_sparse.SparseTensor' or a 'torch.sparse.Tensor'"
@@ -66,16 +91,30 @@ def spmm(
         src = src.to_sparse_csr()
 
     if reduce == "sum":
-        return paddle.sparse.matmul(x=src, y=other)
+        try:
+            return paddle.sparse.matmul(x=src, y=other)
+        except Exception:
+            if src.place.is_cpu_place():
+                return _spmm_dense_fallback(src, other, reduce)
+            raise
     if src.is_sparse_csr() and not src.place.is_gpu_place():
-        return paddle.sparse.matmul(src, other)
+        try:
+            return paddle.sparse.matmul(src, other)
+        except Exception:
+            return _spmm_dense_fallback(src, other, reduce)
     if reduce == "mean":
         if src.is_sparse_csr():
             ptr = src.crows()
             deg = ptr[1:] - ptr[:-1]
         else:
             raise NotImplementedError()
-        return paddle.sparse.matmul(x=src, y=other.cast(src.dtype)) / deg.view(
-            -1, 1).cast(src.dtype).clip_(min=1)
+        try:
+            out = paddle.sparse.matmul(x=src, y=other.cast(src.dtype))
+            return out / deg.view(-1, 1).cast(src.dtype).clip_(min=1)
+        except Exception:
+            return _spmm_dense_fallback(src, other.cast(src.dtype), reduce)
 
-    return paddle.sparse.matmul(src, other)
+    try:
+        return paddle.sparse.matmul(src, other)
+    except Exception:
+        return _spmm_dense_fallback(src, other, reduce)

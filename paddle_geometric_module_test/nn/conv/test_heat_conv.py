@@ -21,7 +21,7 @@ def test_heat_conv(concat):
     assert str(conv) == 'HEATConv(8, 16, heads=2)'
 
     out = conv(x, edge_index, node_type, edge_type, edge_attr)
-    assert out.shape== (4, 32 if concat else 16)
+    assert tuple(out.shape)== (4, 32 if concat else 16)
 
     if paddle_geometric.typing.WITH_PADDLE_SPARSE:
         adj = SparseTensor.from_edge_index(edge_index, edge_attr, (4, 4))

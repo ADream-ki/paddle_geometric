@@ -64,7 +64,13 @@ def scatter(
     # For "any" reduction, we use regular `put_along_axis_`:
     if reduce == 'any':
         index = broadcast(index, src, dim)
-        return src.new_zeros(size).scatter_(dim=dim, index=index, src=src)
+        out = src.new_zeros(size)
+        return paddle.put_along_axis(out,
+                                     index,
+                                     src,
+                                     axis=dim,
+                                     reduce='assign',
+                                     include_self=False)
 
     # For "sum" and "mean" reduction, we make use of `put_along_axis_`:
     if reduce == 'sum' or reduce == 'add':
@@ -143,9 +149,13 @@ def scatter(
 
             index = broadcast(index, src, dim)
             # We initialize with `one` here to match `scatter_mul` output:
-            return paddle.ones(size).scatter_reduce_(dim, index, src,
-                                                     reduce='prod',
-                                                     include_self=True)
+            out = paddle.ones(size, dtype=src.dtype)
+            return paddle.put_along_axis(out,
+                                         index,
+                                         src,
+                                         axis=dim,
+                                         reduce='mul',
+                                         include_self=True)
 
         return paddle_scatter.scatter(src, index, dim, dim_size=dim_size,
                                       reduce='mul')

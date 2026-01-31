@@ -89,13 +89,13 @@ def test_rgat_conv(mod, attention_mechanism, attention_mode, concat, edge_dim):
         assert str(conv) == 'RGATConv(8, 16, heads=2)'
 
         out = conv(x, edge_index, edge_type, edge_attr)
-        assert out.shape== (4, 16 * (2 if concat else 1))
+        assert tuple(out.shape)== (4, 16 * (2 if concat else 1))
 
         out, (adj, alpha) = conv(x, edge_index, edge_type, edge_attr,
                                  return_attention_weights=True)
-        assert out.shape== (4, 16 * (2 if concat else 1))
-        assert adj.shape== edge_index.size()
-        assert alpha.shape== (4, 2)
+        assert tuple(out.shape)== (4, 16 * (2 if concat else 1))
+        assert tuple(adj.shape) == tuple(edge_index.shape)
+        assert tuple(alpha.shape)== (4, 2)
 
 
 def test_rgat_conv_jit():
@@ -111,7 +111,7 @@ def test_rgat_conv_jit():
                     edge_dim=8, bias=False)
 
     out = conv(x, edge_index, edge_type, edge_attr)
-    assert out.shape== (4, 40)
+    assert tuple(out.shape)== (4, 40)
     # t() expects a tensor with <= 2 sparse and 0 dense dimensions
     adj1_t = adj1.transpose(0, 1).coalesce()
     assert paddle.allclose(conv(x, adj1_t, edge_type), out, atol=1e-6)

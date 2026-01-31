@@ -106,7 +106,8 @@ class HANConv(MessagePassing):
         reset(self.proj)
         glorot(self.lin_src)
         glorot(self.lin_dst)
-        self.k_lin.reset_parameters()
+        if hasattr(self.k_lin, "reset_parameters"):
+            self.k_lin.reset_parameters()
         glorot(self.q)
 
     def forward(

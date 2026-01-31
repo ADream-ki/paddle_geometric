@@ -18,7 +18,7 @@ def test_pan_conv():
     conv = PANConv(16, 32, filter_size=2)
     assert str(conv) == 'PANConv(16, 32, filter_size=2)'
     out1, M1 = conv(x, edge_index)
-    assert out1.shape== (4, 32)
+    assert tuple(out1.shape)== (4, 32)
 
     out2, M2 = conv(x, adj1.t())
     assert paddle.allclose(out1, out2, atol=1e-6)

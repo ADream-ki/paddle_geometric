@@ -111,7 +111,7 @@ class Linear(Layer):
         # Initialize bias if specified
         if bias:
             self.bias = paddle.base.framework.EagerParamBase.from_tensor(
-                tensor=paddle.empty(shape=out_channels))
+                tensor=paddle.empty(shape=[out_channels]))
         else:
             self.bias = None
 

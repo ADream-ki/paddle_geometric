@@ -15,21 +15,21 @@ def test_hypergraph_conv_with_more_nodes_than_edges():
     conv = HypergraphConv(in_channels, out_channels)
     assert str(conv) == 'HypergraphConv(16, 32)'
     out = conv(x, hyperedge_index)
-    assert out.shape== (num_nodes, out_channels)
+    assert tuple(out.shape)== (num_nodes, out_channels)
     out = conv(x, hyperedge_index, hyperedge_weight)
-    assert out.shape== (num_nodes, out_channels)
+    assert tuple(out.shape)== (num_nodes, out_channels)
 
     conv = HypergraphConv(in_channels, out_channels, use_attention=True,
                           heads=2)
     out = conv(x, hyperedge_index, hyperedge_attr=hyperedge_attr)
-    assert out.shape== (num_nodes, 2 * out_channels)
+    assert tuple(out.shape)== (num_nodes, 2 * out_channels)
     out = conv(x, hyperedge_index, hyperedge_weight, hyperedge_attr)
-    assert out.shape== (num_nodes, 2 * out_channels)
+    assert tuple(out.shape)== (num_nodes, 2 * out_channels)
 
     conv = HypergraphConv(in_channels, out_channels, use_attention=True,
                           heads=2, concat=False, dropout=0.5)
     out = conv(x, hyperedge_index, hyperedge_weight, hyperedge_attr)
-    assert out.shape== (num_nodes, out_channels)
+    assert tuple(out.shape)== (num_nodes, out_channels)
 
 
 def test_hypergraph_conv_with_more_edges_than_nodes():
@@ -43,6 +43,6 @@ def test_hypergraph_conv_with_more_edges_than_nodes():
     conv = HypergraphConv(in_channels, out_channels)
     assert str(conv) == 'HypergraphConv(16, 32)'
     out = conv(x, hyperedge_index)
-    assert out.shape== (num_nodes, out_channels)
+    assert tuple(out.shape)== (num_nodes, out_channels)
     out = conv(x, hyperedge_index, hyperedge_weight)
-    assert out.shape== (num_nodes, out_channels)
+    assert tuple(out.shape)== (num_nodes, out_channels)

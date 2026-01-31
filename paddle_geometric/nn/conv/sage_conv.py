@@ -125,7 +125,7 @@ class SAGEConv(MessagePassing):
             x: OptPairTensor = (x, x)
 
         if self.project:
-            x = (self.lin(x[0]).relu(), x[1])
+            x = (F.relu(self.lin(x[0])), x[1])
 
         # propagate_type: (x: OptPairTensor)
         out = self.propagate(edge_index, x=x, size=size)
