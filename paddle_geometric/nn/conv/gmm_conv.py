@@ -108,12 +108,12 @@ class GMMConv(MessagePassing):
             self.root = Linear(in_channels[1], out_channels, bias=False,
                                weight_initializer='glorot')
         else:
-            self.root = None
+            self.register_parameter('root', None)
 
         if bias:
             self.bias = self.create_parameter(shape=[out_channels])
         else:
-            self.bias = None
+            self.register_parameter('bias', None)
 
         self.reset_parameters()
 
@@ -127,6 +127,7 @@ class GMMConv(MessagePassing):
             self.root.reset_parameters()
         zeros(self.bias)
 
+    @paddle.no_grad()
     def initialize_parameters(self, module, input):
         if is_uninitialized_parameter(self.g):
             x = input[0][0] if isinstance(input, tuple) else input[0]

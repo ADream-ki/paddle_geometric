@@ -11,7 +11,7 @@ from paddle_geometric.nn.inits import reset
 
 try:
     from paddle_cluster import knn_graph
-except Exception:
+except ImportError:
     knn_graph = None
 
 

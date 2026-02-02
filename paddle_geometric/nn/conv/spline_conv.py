@@ -114,7 +114,7 @@ class SplineConv(MessagePassing):
         if bias:
             self.bias = paddle.create_parameter(shape=[out_channels], dtype='float32')
         else:
-            self.bias = None
+            self.register_parameter('bias', None)
 
 
         self.reset_parameters()

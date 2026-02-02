@@ -170,7 +170,7 @@ class GATConv(MessagePassing):
             self.att_edge = self.create_parameter(shape=[1, heads, out_channels])
         else:
             self.lin_edge = None
-            self.att_edge = None
+            self.register_parameter('att_edge', None)
 
 
         # Optional residual connection:

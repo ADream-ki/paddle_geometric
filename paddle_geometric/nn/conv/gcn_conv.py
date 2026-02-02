@@ -84,9 +84,9 @@ def gcn_norm(  # noqa: F811
     row, col = edge_index[0], edge_index[1]
     idx = col if flow == 'source_to_target' else row
     deg = scatter(edge_weight, idx, dim=0, dim_size=num_nodes, reduce='sum')
-            deg_inv_sqrt = deg.pow(-0.5)
-            deg_inv_sqrt = paddle.where(deg_inv_sqrt == float('inf'), 0., deg_inv_sqrt)
-            edge_weight = deg_inv_sqrt[row] * edge_weight * deg_inv_sqrt[col]
+    deg_inv_sqrt = deg.pow(-0.5)
+    deg_inv_sqrt = paddle.where(deg_inv_sqrt == float('inf'), 0., deg_inv_sqrt)
+    edge_weight = deg_inv_sqrt[row] * edge_weight * deg_inv_sqrt[col]
     return edge_index, edge_weight
 
 
@@ -190,7 +190,7 @@ class GCNConv(MessagePassing):
         if bias:
             self.bias = self.create_parameter([out_channels])
         else:
-            self.bias = None
+            self.register_parameter('bias', None)
 
         self.reset_parameters()
 

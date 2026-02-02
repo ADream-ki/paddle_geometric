@@ -366,9 +366,25 @@ class MessagePassing(paddle.nn.Layer):
         dim: int,
     ) -> Tensor:
         if not _is_scripting() and is_paddle_sparse_tensor(edge_index):
-            indices, _ = to_edge_index(edge_index)
-            index = indices[1 - dim]
-            return paddle.index_select(src, index, axis=self.node_dim)
+            if edge_index.is_sparse_coo():
+                indices = edge_index.nonzero()
+                index = indices[:, 1 - dim]
+                return paddle.index_select(src, index, axis=self.node_dim)
+            elif edge_index.is_sparse_csr():
+                crows = edge_index.crows()
+                cols = edge_index.cols()
+                if dim == 0:
+                    return paddle.index_select(src, cols, axis=self.node_dim)
+                else:
+                    row_indices = []
+                    for i in range(len(crows) - 1):
+                        row_indices.extend([i] * (crows[i + 1] - crows[i]))
+                    row_indices = paddle.to_tensor(row_indices, place=edge_index.place)
+                    return paddle.index_select(src, row_indices, axis=self.node_dim)
+            else:
+                indices, _ = to_edge_index(edge_index)
+                index = indices[1 - dim]
+                return paddle.index_select(src, index, axis=self.node_dim)
 
         elif isinstance(edge_index, Tensor):
             if _is_scripting():  # Try/catch blocks are not supported.

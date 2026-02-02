@@ -83,12 +83,12 @@ class RGCNConv(MessagePassing):
             self.root = self.create_parameter(
                 shape=[in_channels[1], out_channels])
         else:
-            self.root = None
+            self.register_parameter('root', None)
 
         if bias:
             self.bias = self.create_parameter(shape=[out_channels])
         else:
-            self.bias = None
+            self.register_parameter('bias', None)
 
         self.reset_parameters()
 
@@ -171,9 +171,69 @@ class RGCNConv(MessagePassing):
 class FastRGCNConv(RGCNConv):
     r"""See :class:`RGCNConv`."""
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-
     def forward(self, x: Union[OptTensor, Tuple[OptTensor, Tensor]],
                 edge_index: Adj, edge_type: OptTensor = None) -> Tensor:
-        return super().forward(x, edge_index, edge_type)
+
+        self.fuse = False
+        assert self.aggr in ['add', 'sum', 'mean']
+
+        # Convert input features to a pair of node features or node indices.
+        x_l: OptTensor = x[0] if isinstance(x, tuple) else x
+        if x_l is None:
+            x_l = paddle.arange(self.in_channels_l, dtype='int64',
+                                place=self.weight.place)
+
+        x_r: Tensor = x_l if not isinstance(x, tuple) else x[1]
+
+        size = (x_l.shape[0], x_r.shape[0])
+
+        # propagate_type: (x: Tensor, edge_type: OptTensor)
+        out = self.propagate(edge_index, x=x_l, edge_type=edge_type, size=size)
+
+        if self.root is not None:
+            if not paddle.is_floating_point(x_r):
+                out = out + self.root[x_r]
+            else:
+                out = out + paddle.matmul(x_r, self.root)
+
+        if self.bias is not None:
+            out = out + self.bias
+
+        return out
+
+    def message(self, x_j: Tensor, edge_type: Tensor,
+                edge_index_j: Tensor) -> Tensor:
+        weight = self.weight
+        if self.num_bases is not None:  # Basis-decomposition =================
+            weight = paddle.matmul(self.comp, weight.reshape([self.num_bases, -1]))
+            weight = weight.reshape(
+                [self.num_relations, self.in_channels_l, self.out_channels])
+
+        if self.num_blocks is not None:  # Block-diagonal-decomposition =======
+            if not paddle.is_floating_point(x_j):
+                raise ValueError('Block-diagonal decomposition not supported '
+                                 'for non-continuous input features.')
+
+            weight = weight[edge_type].reshape([-1, weight.shape[2], weight.shape[3]])
+            x_j = x_j.reshape([-1, 1, weight.shape[1]])
+            return paddle.bmm(x_j, weight).reshape([-1, self.out_channels])
+
+        else:  # No regularization/Basis-decomposition ========================
+            if not paddle.is_floating_point(x_j):
+                weight_index = edge_type * weight.shape[1] + edge_index_j
+                return weight.reshape([-1, self.out_channels])[weight_index]
+
+            return paddle.bmm(x_j.unsqueeze(-2), weight[edge_type]).squeeze(-2)
+
+    def aggregate(self, inputs: Tensor, edge_type: Tensor, index: Tensor,
+                  dim_size: Optional[int] = None) -> Tensor:
+
+        # Compute normalization in separation for each `edge_type`.
+        if self.aggr == 'mean':
+            norm = one_hot(edge_type, self.num_relations, dtype=inputs.dtype)
+            norm = scatter(norm, index, dim=0, dim_size=dim_size)[index]
+            norm = paddle.gather(norm, 1, edge_type.reshape([-1, 1]))
+            norm = 1. / norm.clip(1.)
+            inputs = norm * inputs
+
+        return scatter(inputs, index, dim=self.node_dim, dim_size=dim_size)
